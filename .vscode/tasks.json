@@ -1,0 +1,7 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {"label": "Start demo", "type": "shell", "command": "npm run dev -- --port 5175", "isBackground": true, "problemMatcher": []},
+    {"label": "Build demo", "type": "shell", "command": "npm run build", "group": "build", "problemMatcher": "$tsc"}
+  ]
+}

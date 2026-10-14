@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+public/course-materials/
+docs/qa/
+
+.backups/
+
+server/__pycache__/
