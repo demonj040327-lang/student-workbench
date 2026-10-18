@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {parseDocument, askDocument, studyStatus, createStudyMiddleware} from './study-api.mjs';
+import {parseDocument, askDocument, planAssignment, studyStatus, createStudyMiddleware} from './study-api.mjs';
 
 const exec = promisify(execFile);
 const python = process.env.STUDY_PYTHON_BIN || '/Users/jiangge/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3';
@@ -104,6 +104,52 @@ test('same-origin middleware rejects cross-site POST and returns local parse/ask
   const answer = await request('/api/study/ask', {document: upload.output, question: 'consent', mode: 'local'});
   assert.equal(answer.status, 200);
   assert.equal(answer.output.sources[0].page, 1);
+  const plan = await request('/api/study/plan', {courseId:'fixture',title:'Report',brief:'Review two services and write a report with references.',allowExternal:false});
+  assert.equal(plan.status, 403);
+});
+
+test('assignment planning validates original quotes, step count, estimates and explicit model action', async () => {
+  const originalFetch = globalThis.fetch;
+  const payload = {courseId:'fixture',title:'Original demonstration brief',brief:'Review two digital services. Compare user journeys. Write a report with references.',allowExternal:true};
+  const env = {ELM_API_KEY:'fixture-only',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'fixture-model'};
+  const steps = ['Review two digital services.','Compare user journeys.','Write a report with references.'].map((sourceQuote,i)=>({title:`Action ${i+1}`,output:'A short evidence note',sourceQuote,minutes:30}));
+  try {
+    let calls=0;
+    let responseSteps=steps;
+    globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({steps:responseSteps})}}]}));};
+    await assert.rejects(planAssignment({...payload,allowExternal:false},{env}),/允许/);
+    assert.equal(calls,0);
+    const plan=await planAssignment(payload,{env});
+    assert.equal(plan.mode,'ai');assert.equal(plan.steps.length,3);
+    assert(plan.steps.every(s=>payload.brief.includes(s.sourceQuote)));
+    responseSteps=[{...steps[0],sourceQuote:'Invented requirement'},...steps.slice(1)];
+    await assert.rejects(planAssignment(payload,{env}),/原文不符/);
+    responseSteps=steps.slice(0,2);
+    await assert.rejects(planAssignment(payload,{env}),/3–5/);
+    responseSteps=[{...steps[0],minutes:-10},...steps.slice(1)];
+    await assert.rejects(planAssignment(payload,{env}),/时间建议/);
+  } finally {globalThis.fetch=originalFetch;}
+});
+
+test('uploaded planning checks course and page-specific quotes without inventing file requirements', async () => {
+  const originalFetch=globalThis.fetch;
+  const env={ELM_API_KEY:'fixture-only',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'fixture-model'};
+  const document={id:'file-plan-fixture',courseId:'fixture',name:'lecture.pdf',pages:[{page:1,title:'Interview',text:'Semi-structured interviews use a flexible topic guide.'},{page:2,title:'Consent',text:'Participants can choose whether to participate.'}],units:[]};
+  const payload={courseId:'fixture',title:'Lecture study plan',document,allowExternal:true};
+  const steps=[{title:'Read the guide',output:'A definition note',sourceQuote:document.pages[0].text,sourcePage:1,minutes:20},{title:'Explain consent',output:'A consent summary',sourceQuote:document.pages[1].text,sourcePage:2,minutes:20},{title:'Recall the concepts',output:'A self-check note',sourceQuote:document.pages[0].text,sourcePage:1,minutes:15}];
+  let modelSteps=steps;let calls=0;
+  try {
+    globalThis.fetch=async(_,options)=>{calls++;const body=JSON.parse(options.body);const user=JSON.parse(body.messages[1].content);assert.equal(user.pages.length,2);assert.equal(user.brief,undefined);assert(body.messages[0].content.includes('不编造作业'));return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({steps:modelSteps})}}]}));};
+    await assert.rejects(planAssignment({...payload,courseId:'another-course'},{env}),/不匹配/);
+    assert.equal(calls,0);
+    const plan=await planAssignment(payload,{env});assert.equal(plan.steps[1].sourcePage,2);
+    modelSteps=[{...steps[0],sourcePage:2},...steps.slice(1)];
+    await assert.rejects(planAssignment(payload,{env}),/页序或原文/);
+    modelSteps=[{...steps[0],sourcePage:999},...steps.slice(1)];
+    await assert.rejects(planAssignment(payload,{env}),/页序或原文/);
+    const large={...document,id:'too-long-file',pages:[{page:1,text:'x'.repeat(31000)},{page:2,text:'y'.repeat(31000)}]};
+    const before=calls;await assert.rejects(planAssignment({...payload,document:large},{env}),/按章节拆分/);assert.equal(calls,before);
+  }finally{globalThis.fetch=originalFetch;}
 });
 
 test('mock ELM validates citations and generated plan structure without any outbound request', async () => {
