@@ -1,0 +1,111 @@
+/* Semester overview: white surfaces, restrained subject colors, readable time. */
+.simplified-app .semester-hero {margin:8px 0 20px;animation:none;}
+.simplified-app .semester-hero h1 {font-size:36px;letter-spacing:-1.2px;margin:12px 0 9px;}
+.simplified-app .semester-hero-copy>p {font-size:13px;}
+.simplified-app .semester-at-a-glance {padding:18px 0 0;margin-bottom:25px;}
+.simplified-app .semester-at-a-glance strong {font-size:25px;}
+.simplified-app .timeline-card {background:#fff;color:#25252a;border:1px solid #e4e5eb;border-radius:18px;padding:26px 28px 18px;animation:none;}
+.simplified-app .timeline-card h2 {color:#25252a;font-size:25px;letter-spacing:-.7px;}
+.simplified-app .timeline-eyebrow {color:#747783;font-size:9px;letter-spacing:1.2px;}
+.simplified-app .timeline-card-heading p {color:#747783;}
+.simplified-app .semester-clock strong {color:#30333c;font-size:22px;}
+.simplified-app .semester-clock>div>span,.simplified-app .semester-clock strong small {color:#747783;}
+.simplified-app .semester-clock-track {background:#edf0f5;height:4px;}
+.simplified-app .semester-clock-track>i {background:#6682ad;}
+.simplified-app .timeline-toolbar {border-color:#ebedf2;margin-top:22px;padding-bottom:15px;}
+.simplified-app .timeline-filters button {color:#636873;border-radius:7px;}
+.simplified-app .timeline-filters button.active {background:#edf2f8;color:#3e5e89;}
+.simplified-app .timeline-filters button:hover {background:#f5f6f9;color:#30333c;}
+.simplified-app .timeline-today-button {color:#55749e;}
+.simplified-app .timeline-today-button:hover {color:#244c7d;}
+.simplified-app .timeline-scroll {scrollbar-color:#cdd3de #fff;}
+.simplified-app .timeline-today-spine {border-color:#96a6bf;}
+.simplified-app .timeline-today-spine>span {background:#edf2f9;color:#47648e;}
+.simplified-app .timeline-course {padding-bottom:22px;}
+.simplified-app .timeline-course-identity {background:#fff;}
+.simplified-app .timeline-course-identity strong {font-size:14px;letter-spacing:.1px;}
+.simplified-app .timeline-course-identity>span {color:#727783;}
+.simplified-app .timeline-course-total {background:#fff;color:#727783;}
+.simplified-app .timeline-assignment-info {margin-top:5px;}
+.simplified-app .timeline-assignment-info>button {background:#fff;color:#454b57;font-size:12px;}
+.simplified-app .timeline-assignment-info>button>span {color:#9298a4;}
+.simplified-app .timeline-assignment-info>button:hover {color:#0066cc;}
+.simplified-app .timeline-assignment-info>span {background:#fff;color:#727783;}
+.simplified-app .timeline-assignment-info b {color:#454b57;}
+.simplified-app .timeline-rail {height:12px;background:#f1f3f7;}
+.simplified-app .timeline-interval {height:12px;border-radius:3px;background:color-mix(in srgb,var(--lane-color) 24%,white);outline:1px solid color-mix(in srgb,var(--lane-color) 35%,white);}
+.simplified-app .timeline-interval-progress {height:100%;background:var(--lane-color);opacity:1;border-radius:3px 0 0 3px;}
+.simplified-app .timeline-interval.is-complete .timeline-interval-progress {border-radius:3px;}
+.simplified-app .timeline-interval:hover {filter:brightness(.96);box-shadow:0 0 0 3px color-mix(in srgb,var(--lane-color) 12%,transparent);}
+.simplified-app .timeline-unplanned>button,.simplified-app .timeline-unplanned>span:not(.timeline-rail),.simplified-app .timeline-pending-link {background:#fff;color:#747783;}
+.simplified-app .timeline-unplanned .timeline-rail {background:#f1f3f7;}
+.simplified-app .timeline-axis-line,.simplified-app .timeline-axis-month::before {background:#a5adba;}
+.simplified-app .timeline-axis-month {color:#4f5867;}
+.simplified-app .timeline-axis-month>small {color:#939aa6;}
+.simplified-app .timeline-axis-month>i {background:#d2d7e0;}
+.simplified-app .timeline-axis-arrow {color:#a5adba;}
+.simplified-app .timeline-card-footer {color:#747783;border-color:#ebedf2;}
+.simplified-app .timeline-card-footer i {background:#dce3ee;height:8px;}
+.simplified-app .timeline-card-footer .timeline-legend-progress {background:#6483b5;height:8px;}
+.simplified-app .timeline-scroll-hint {color:#747783;}
+.simplified-app .weekly-courses {margin-top:34px;}
+.simplified-app .weekly-courses-heading h2 {font-size:25px;letter-spacing:-.6px;}
+.simplified-app .weekly-course {border:1px solid #e7e8ee;border-radius:16px;}
+.simplified-app .assignment-table {border-radius:16px;}
+.simplified-app .assignment-course {filter:none;}
+.home-example-banner {display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid #dfe6f0;background:#edf2f8;border-radius:10px;padding:13px 18px;margin:0 0 26px;}
+.home-example-banner strong {font-size:12px;font-weight:600;color:#3b516d;}
+.home-example-banner p {font-size:11px;line-height:1.6;color:#66778d;margin:5px 0 0;}
+.home-example-banner>div:last-child {display:flex;gap:16px;flex-shrink:0;}
+.home-example-banner button {font-size:11px;color:#3b5f8e;min-height:36px;padding:5px 0;}
+@media(max-width:734px) {
+ .home-example-banner {align-items:flex-start;flex-direction:column;padding:13px 15px;gap:7px;margin-bottom:24px;}
+ .home-example-banner>div:last-child {width:100%;justify-content:space-between;}
+ .home-example-banner button {min-height:32px;}
+ .simplified-app .semester-hero h1 {font-size:29px;margin:10px 0;}
+ .simplified-app .semester-at-a-glance {margin-bottom:22px;gap:20px 22px;}
+ .simplified-app .semester-at-a-glance strong {font-size:23px;}
+ .simplified-app .timeline-card {padding:23px 19px 18px;border-radius:16px;}
+ .simplified-app .timeline-card h2 {font-size:23px;}
+ .simplified-app .semester-clock strong {font-size:18px;}
+ .simplified-app .timeline-assignment-info>button {font-size:11px;}
+ .simplified-app .timeline-assignment-info>span {font-size:9px;gap:7px;}
+ .simplified-app .timeline-course-heading,.simplified-app .timeline-assignment-info {width:calc(100vw - 80px);}
+ .simplified-app .timeline-filters {flex-wrap:wrap;justify-content:flex-start;gap:4px;}
+ .simplified-app .timeline-filters button {padding:8px 10px;}
+ .simplified-app .timeline-card-footer {font-size:10px;}
+ .simplified-app .weekly-courses-heading h2 {font-size:23px;}
+}
+@media(max-width:360px) {
+ .simplified-app .timeline-card {padding-left:15px;padding-right:15px;}
+ .simplified-app .timeline-course-heading,.simplified-app .timeline-assignment-info {width:calc(100vw - 64px);}
+ .simplified-app .timeline-course-total {font-size:8px;}
+}
+
+.simplified-app .timeline-plot {padding-top:65px;}
+.simplified-app .timeline-month-ruler {position:absolute;top:15px;left:0;right:0;height:22px;border-bottom:1px solid #edf0f5;}
+.simplified-app .timeline-month-ruler>span {position:absolute;top:0;padding-left:8px;font-size:10px;color:#727d8d;border-left:1px solid #d7dce5;line-height:13px;}
+.simplified-app .timeline-today-spine {top:59px;}
+
+.language-switcher {display:flex;align-items:center;gap:2px;padding:2px;border-radius:7px;background:#eceef3;flex-shrink:0;}
+.language-switcher button {border:0;border-radius:5px;color:#727783;font-size:11px;min-height:28px;min-width:35px;padding:4px 7px;}
+.language-switcher button[aria-pressed=true] {background:#fff;color:#303944;box-shadow:0 1px 3px #0000000c;}
+.language-switcher button:focus-visible {outline:2px solid #6286b0;outline-offset:2px;}
+html[lang=en] .app-nav-inner {gap:18px;}
+html[lang=en] .desktop-navigation {gap:22px;}
+html[lang=en] .timeline-assignment-info>button {max-width:62%;}
+html[lang=en] .timeline-assignment-info>span {gap:10px;}
+@media(max-width:734px) {
+ .app-nav-account {gap:8px;}
+ html[lang=en] .home-example-banner {gap:6px;}
+ html[lang=en] .timeline-assignment-info>button {max-width:52%;}
+ html[lang=en] .timeline-course-identity>span {max-width:110px;}
+ html[lang=en] .timeline-course-total {font-size:8px;}
+ html[lang=en] .semester-hero h1 {font-size:29px;letter-spacing:-.8px;}
+ html[lang=en] .semester-hero-actions .button {padding:10px 12px;font-size:11px;}
+ html[lang=en] .inline-label {gap:6px;}
+ html[lang=en] .simple-section-heading {flex-wrap:wrap;}
+ html[lang=en] .question-toolbar {gap:12px;}
+}
+@media(max-width:360px) {.app-nav-account .avatar {display:none;}.language-switcher button {min-width:32px;}html[lang=en] .timeline-course-identity>span {max-width:83px;}}
+@media(max-width:734px){html[lang=en] .semester-hero-actions {flex-wrap:wrap;}html[lang=en] .semester-hero-actions .button {max-width:100%;}}

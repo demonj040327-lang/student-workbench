@@ -1,5 +1,6 @@
+import {useI18n} from './i18n';
 import {useEffect, useRef, useState, type DragEvent} from 'react';
-import {isoDate, shiftDate, type Assignment, type Course} from './data';
+import {isoDate, type Assignment, type Course} from './data';
 import {errorMessage, sourcePayload, studyRequest, uid} from './studyClient';
 import {saveAsset} from './storage';
 import {loadStudyDocument, saveStudyDocument, studyCacheKey} from './studyStore';
@@ -8,8 +9,8 @@ import type {StudyDocument, StudySource} from './studyTypes';
 type DraftStep = {id:string;title:string;output:string;sourceQuote:string;sourcePage?:number;minutes:number};
 type DraftFile = {name:string;pageCount:number;documentId:string;cacheKey?:string};
 type Draft = {courseId:string;title:string;due:string;brief:string;steps:DraftStep[];mode:'ai'|'example'|'manual';file?:DraftFile};
-const DRAFT_KEY='workbench-assignment-draft-v1';
-const exampleBrief='Choose a familiar digital service. Review the coursework requirements and identify the deliverables. Compare two user journeys and document the main usability issues. Propose improvements with supporting evidence. Write a short report and check all references before submission.';
+const DRAFT_KEY='student-workbench-app-assignment-draft-v1';
+
 function blank(courseId:string):Draft {return {courseId,title:'',due:'',brief:'',steps:[],mode:'manual'};}
 function readDraft(courseId:string):Draft {
   try {
@@ -22,6 +23,7 @@ function readDraft(courseId:string):Draft {
   return blank(courseId);
 }
 export default function AssignmentPlanner({courses,courseId,onCourse,anchor,aiConfigured,onSave}:{courses:Course[];courseId:string;onCourse:(id:string)=>void;anchor:string;aiConfigured:boolean;onSave:(a:Assignment)=>void}) {
+  const {t}=useI18n();
   const [draft,setDraft]=useState(()=>readDraft(courseId));
   const [error,setError]=useState('');
   const [warning,setWarning]=useState('');
@@ -39,10 +41,6 @@ export default function AssignmentPlanner({courses,courseId,onCourse,anchor,aiCo
   useEffect(()=>{if(!courses.some(c=>c.id===draft.courseId))setDraft(blank(courseId));},[courses,courseId,draft.courseId]);
   function patch(value:Partial<Draft>) {setDraft(d=>({...d,...value}));}
   function stepPatch(id:string,value:Partial<DraftStep>) {setDraft(d=>({...d,steps:d.steps.map(s=>s.id===id?{...s,...value}:s)}));}
-  function example() {
-    request.current?.abort();parsedDocument.current=null;setError('');setWarning('');setMessage('');
-    setDraft({courseId:draft.courseId,title:'数字服务体验分析 · 示例',due:shiftDate(isoDate(new Date()),10),brief:exampleBrief,mode:'example',steps:[['阅读要求并列出交付物','一份交付物清单','Review the coursework requirements and identify the deliverables.',20],['比较两条用户路径','两条路径及可用性问题记录','Compare two user journeys and document the main usability issues.',45],['提出改进建议','带依据的建议列表','Propose improvements with supporting evidence.',40],['完成报告并检查引用','报告草稿与引用核对记录','Write a short report and check all references before submission.',60]].map(([title,output,sourceQuote,minutes])=>({id:uid(),title:String(title),output:String(output),sourceQuote:String(sourceQuote),minutes:Number(minutes)}))});
-  }
   function current(controller:AbortController) {return request.current===controller&&!controller.signal.aborted;}
   async function generateDraft(value:Draft,controller:AbortController,document?:StudyDocument) {
     let source=document;
@@ -77,7 +75,7 @@ export default function AssignmentPlanner({courses,courseId,onCourse,anchor,aiCo
       }catch{if(current(controller))setWarning('文字已读取，但文件或缓存未保存；刷新后可能需要重新上传。');}
       if(!current(controller))return;
       parsedDocument.current=doc;
-      const next:Draft={courseId:cid,title:file.name.replace(/\.[^.]+$/,'').slice(0,150)||'课件学习计划',due:'',brief:doc.pages.map(p=>`[第${p.page}页]\n${p.text}`).join('\n\n'),steps:[],mode:'manual',file:{name:file.name,pageCount:doc.pages.length,documentId:doc.id,cacheKey}};
+      const next:Draft={courseId:cid,title:file.name.replace(/\.[^.]+$/,'').slice(0,150)||t('课件学习计划'),due:'',brief:doc.pages.map(p=>`[第${p.page}页]\n${p.text}`).join('\n\n'),steps:[],mode:'manual',file:{name:file.name,pageCount:doc.pages.length,documentId:doc.id,cacheKey}};
       setDraft(next);
       if(aiReady.current)await generateDraft(next,controller,doc);
       else setMessage('文件已读取。ELM 可用后点击“生成步骤”，也可以手动添加步骤。');
@@ -104,26 +102,26 @@ export default function AssignmentPlanner({courses,courseId,onCourse,anchor,aiCo
     onCourse(d.courseId);onSave(assignment);
   }
   return <section className="simple-feature" aria-labelledby="planner-title">
-    <header className="simple-feature-heading"><div><span className="section-kicker">COURSEWORK PLANNER</span><h1 id="planner-title">上传资料，自动拆解。</h1><p>课件或作业说明，生成可以逐步完成的学习计划。</p></div><button className="button" onClick={example} disabled={busy}>使用示例</button></header>
-    <div className="planner-layout"><section className="simple-panel planner-input"><div className="panel-heading"><span className="panel-number">01</span><h2>上传课程资料</h2></div>
-      <div className="form-stack"><label>归属课程<select aria-label="归属课程" value={draft.courseId} disabled={busy} onChange={e=>{parsedDocument.current=null;setDraft(blank(e.target.value));setError('');setWarning('');setMessage('');onCourse(e.target.value);}}>{courses.map(c=><option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}</select></label>
+    <header className="simple-feature-heading"><div><span className="section-kicker">COURSEWORK PLANNER</span><h1 id="planner-title">{t("上传资料，自动拆解。")}</h1><p>{t("课件或作业说明，生成可以逐步完成的学习计划。")}</p></div></header>
+    <div className="planner-layout"><section className="simple-panel planner-input"><div className="panel-heading"><span className="panel-number">01</span><h2>{t("上传课程资料")}</h2></div>
+      <div className="form-stack"><label>{t("归属课程")}<select aria-label={t("归属课程")} value={draft.courseId} disabled={busy} onChange={e=>{parsedDocument.current=null;setDraft(blank(e.target.value));setError('');setWarning('');setMessage('');onCourse(e.target.value);}}>{courses.map(c=><option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}</select></label>
         <div className={`planner-dropzone ${dragging?'dragging':''}`} onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={drop}>
-          <input ref={fileInput} type="file" accept=".pdf,.pptx,.docx,.txt,.md" aria-label="上传课件或作业说明" hidden onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/>
-          <span className="planner-upload-icon" aria-hidden="true">↑</span><h3>{draft.file?'上传另一份资料':'把课件放到这里'}</h3><p>支持课件、讲义或 coursework 说明</p><button className="button button-primary" disabled={busy} onClick={()=>fileInput.current?.click()}>{draft.file?'更换文件':'选择文件并生成'}</button><small>PDF、PPTX、DOCX、TXT、MD · 最大 25 MB</small>
+          <input ref={fileInput} type="file" accept=".pdf,.pptx,.docx,.txt,.md" aria-label={t("上传课件或作业说明")} hidden onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/>
+          <span className="planner-upload-icon" aria-hidden="true">↑</span><h3>{draft.file?t("上传另一份资料"):t("把课件放到这里")}</h3><p>{t("支持课件、讲义或 coursework 说明")}</p><button className="button button-primary" disabled={busy} onClick={()=>fileInput.current?.click()}>{draft.file?t("更换文件"):t("选择文件并生成")}</button><small>{t("PDF、PPTX、DOCX、TXT、MD · 最大 25 MB")}</small>
         </div>
-        <p className="simple-footnote planner-upload-notice">{aiConfigured?'上传后会自动提取文字，并发送至学校 ELM 生成步骤。':'ELM 暂不可用：上传后可先读取原文，稍后生成步骤。'} 图片、图示中的文字可能无法提取。</p>
-        {busy&&<div className="planner-upload-status" role="status"><span>{phase==='reading'?'正在读取文件文字…':'正在生成 3–5 个步骤…'}</span><button className="text-button" onClick={()=>{request.current?.abort();setMessage('已取消。已读取的资料仍可重新生成步骤。');}}>取消</button></div>}
-        {draft.file&&<div className="planner-file-summary"><span aria-hidden="true">↳</span><div><strong>{draft.file.name}</strong><small>已读取 {draft.file.pageCount} 页 / 节 · 已归入 {courses.find(c=>c.id===draft.courseId)?.code}</small></div></div>}
-        {(draft.file||draft.brief)&&<><label>计划标题<input aria-label="计划标题" value={draft.title} maxLength={150} disabled={busy} onChange={e=>patch({title:e.target.value})}/></label><label>截止日期（可选）<input aria-label="截止日期" type="date" value={draft.due} disabled={busy} onChange={e=>patch({due:e.target.value})}/></label><p className="simple-footnote">标题已自动填写；截止日期由你确认，不会从课件中猜测。</p></>}
-        {draft.file?<details className="planner-original"><summary>查看提取的原文</summary><pre>{draft.brief}</pre></details>:<details className="planner-manual"><summary>或手动输入要求</summary><div className="form-stack"><label>作业标题<input value={draft.title} maxLength={150} disabled={busy} onChange={e=>patch({title:e.target.value})}/></label><label>原始要求<textarea value={draft.brief} rows={5} maxLength={12000} disabled={busy} placeholder="粘贴作业要求…" onChange={e=>patch({brief:e.target.value,steps:[],mode:'manual'})}/></label></div></details>}
-        {(draft.file||draft.brief)&&<div className="planner-generate"><button className="button" onClick={generate} disabled={busy||!aiConfigured}>{draft.steps.length?'重新生成步骤':'生成步骤'}</button></div>}
+        <p className="simple-footnote planner-upload-notice">{aiConfigured?t("上传后会自动提取文字，并发送至学校 ELM 生成步骤。"):t("ELM 暂不可用：上传后可先读取原文，稍后生成步骤。")}{' '}{t("图片、图示中的文字可能无法提取。")}</p>
+        {busy&&<div className="planner-upload-status" role="status"><span>{phase==='reading'?t("正在读取文件文字…"):t("正在生成 3–5 个步骤…")}</span><button className="text-button" onClick={()=>{request.current?.abort();setMessage(t("已取消。已读取的资料仍可重新生成步骤。"));}}>{t("取消")}</button></div>}
+        {draft.file&&<div className="planner-file-summary"><span aria-hidden="true">↳</span><div><strong>{draft.file.name}</strong><small>{t("已读取")}{' '}{draft.file.pageCount}{' '}{t("页 / 节 · 已归入")}{' '}{courses.find(c=>c.id===draft.courseId)?.code}</small></div></div>}
+        {(draft.file||draft.brief)&&<><label>{t("计划标题")}<input aria-label={t("计划标题")} value={draft.title} maxLength={150} disabled={busy} onChange={e=>patch({title:e.target.value})}/></label><label>{t("截止日期（可选）")}<input aria-label={t("截止日期")} type="date" value={draft.due} disabled={busy} onChange={e=>patch({due:e.target.value})}/></label><p className="simple-footnote">{t("标题已自动填写；截止日期由你确认，不会从课件中猜测。")}</p></>}
+        {draft.file?<details className="planner-original"><summary>{t("查看提取的原文")}</summary><pre>{draft.brief}</pre></details>:<details className="planner-manual"><summary>{t("或手动输入要求")}</summary><div className="form-stack"><label>{t("作业标题")}<input value={draft.title} maxLength={150} disabled={busy} onChange={e=>patch({title:e.target.value})}/></label><label>{t("原始要求")}<textarea value={draft.brief} rows={5} maxLength={12000} disabled={busy} placeholder={t("粘贴作业要求…")} onChange={e=>patch({brief:e.target.value,steps:[],mode:'manual'})}/></label></div></details>}
+        {(draft.file||draft.brief)&&<div className="planner-generate"><button className="button" onClick={generate} disabled={busy||!aiConfigured}>{draft.steps.length?t("重新生成步骤"):t("生成步骤")}</button></div>}
       </div>
     </section>
-    <section className="simple-panel planner-result" aria-labelledby="draft-title"><div className="panel-heading"><span className="panel-number">02</span><h2 id="draft-title">步骤草稿</h2><span className="subtle-badge">{draft.mode==='ai'?'ELM 生成':draft.mode==='example'?'示例草稿':draft.file?'已读取文件':'等待资料'}</span></div><p className="simple-footnote">课件生成复习步骤，作业说明生成执行步骤。展开即可修改。</p>
-      {!draft.steps.length&&<div className="planner-placeholder"><span aria-hidden="true">≡</span><h3>{busy?'正在整理你的资料':'上传后，步骤会显示在这里'}</h3><p>每一步包含具体行动、预期产出和对应原文。</p></div>}
-      <div className="draft-steps">{draft.steps.map((step,i)=><details className="draft-step" key={step.id}><summary><span className="draft-step-index">{String(i+1).padStart(2,'0')}</span><span><strong>{step.title||'填写这一步的行动'}</strong><small>{step.output||'补充完成后的产出'} · {step.minutes} 分钟</small></span><span className="draft-expand" aria-hidden="true">⌄</span></summary><div className="draft-step-fields"><label>行动<input value={step.title} maxLength={160} disabled={busy} onChange={e=>stepPatch(step.id,{title:e.target.value})}/></label><label>完成后应有的产出<textarea rows={2} value={step.output} maxLength={1200} disabled={busy} onChange={e=>stepPatch(step.id,{output:e.target.value})}/></label><label className="duration-field">预计用时<input type="number" min={5} max={240} value={step.minutes} disabled={busy} onChange={e=>stepPatch(step.id,{minutes:Number(e.target.value)})}/>分钟</label>{step.sourceQuote&&<details className="draft-source"><summary>对应原文{step.sourcePage?` · 第 ${step.sourcePage} 页 / 节`:''}</summary><blockquote>{step.sourceQuote}</blockquote></details>}<button className="text-button" disabled={busy} aria-label={`删除步骤 ${i+1}`} onClick={()=>patch({steps:draft.steps.filter(s=>s.id!==step.id)})}>删除这一步</button></div></details>)}</div>
-      <div className="planner-save"><button className="button" disabled={busy||draft.steps.length>=8} onClick={()=>patch({steps:[...draft.steps,{id:uid(),title:'',output:'',sourceQuote:'',minutes:30}]})}>＋ 添加一步</button><button className="button button-primary" disabled={busy||!draft.steps.length} onClick={save}>加入学习计划 ↗</button></div><p className="simple-footnote">按顺序分配到今天至截止日；未填写日期时按每天一步安排。</p>
+    <section className="simple-panel planner-result" aria-labelledby="draft-title"><div className="panel-heading"><span className="panel-number">02</span><h2 id="draft-title">{t("步骤草稿")}</h2><span className="subtle-badge">{draft.mode==='ai'?t("ELM 生成"):draft.mode==='example'?t("示例草稿"):draft.file?t("已读取文件"):t("等待资料")}</span></div><p className="simple-footnote">{t("课件生成复习步骤，作业说明生成执行步骤。展开即可修改。")}</p>
+      {!draft.steps.length&&<div className="planner-placeholder"><span aria-hidden="true">≡</span><h3>{busy?t("正在整理你的资料"):t("上传后，步骤会显示在这里")}</h3><p>{t("每一步包含具体行动、预期产出和对应原文。")}</p></div>}
+      <div className="draft-steps">{draft.steps.map((step,i)=><details className="draft-step" key={step.id}><summary><span className="draft-step-index">{String(i+1).padStart(2,'0')}</span><span><strong>{step.title||t("填写这一步的行动")}</strong><small>{step.output||t("补充完成后的产出")} · {step.minutes}{' '}{t("分钟")}</small></span><span className="draft-expand" aria-hidden="true">⌄</span></summary><div className="draft-step-fields"><label>{t("行动")}<input value={step.title} maxLength={160} disabled={busy} onChange={e=>stepPatch(step.id,{title:e.target.value})}/></label><label>{t("完成后应有的产出")}<textarea rows={2} value={step.output} maxLength={1200} disabled={busy} onChange={e=>stepPatch(step.id,{output:e.target.value})}/></label><label className="duration-field">{t("预计用时")}<input type="number" min={5} max={240} value={step.minutes} disabled={busy} onChange={e=>stepPatch(step.id,{minutes:Number(e.target.value)})}/>{t("分钟")}</label>{step.sourceQuote&&<details className="draft-source"><summary>{t("对应原文")}{step.sourcePage?t(" · 第 {v0} 页 / 节", {v0: step.sourcePage}):''}</summary><blockquote>{step.sourceQuote}</blockquote></details>}<button className="text-button" disabled={busy} aria-label={t("删除步骤 {v0}", {v0: i+1})} onClick={()=>patch({steps:draft.steps.filter(s=>s.id!==step.id)})}>{t("删除这一步")}</button></div></details>)}</div>
+      <div className="planner-save"><button className="button" disabled={busy||draft.steps.length>=8} onClick={()=>patch({steps:[...draft.steps,{id:uid(),title:'',output:'',sourceQuote:'',minutes:30}]})}>{t("＋ 添加一步")}</button><button className="button button-primary" disabled={busy||!draft.steps.length} onClick={save}>{t("加入学习计划 ↗")}</button></div><p className="simple-footnote">{t("按顺序分配到今天至截止日；未填写日期时按每天一步安排。")}</p>
     </section></div>
-    {error&&<p className="simple-error" role="alert">{error}</p>}{warning&&<p className="simple-footnote" role="status">{warning}</p>}{message&&<p className="planner-message" role="status">{message}</p>}
+    {error&&<p className="simple-error" role="alert">{t(error)}</p>}{warning&&<p className="simple-footnote" role="status">{t(warning)}</p>}{message&&<p className="planner-message" role="status">{t(message)}</p>}
   </section>;
 }

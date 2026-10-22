@@ -149,3 +149,13 @@
 .planner-manual .form-stack {padding-top:15px;}
 .planner-message {font-size:12px;color:#436f55;margin:18px 0;line-height:1.7;}
 @media(max-width:734px) {.planner-dropzone {padding:26px 16px;}}
+
+.clean-start {max-width:760px;padding:42px 0 100px;margin:0 auto;}
+.clean-start h1 {font-size:38px;letter-spacing:-1px;font-weight:600;margin:16px 0;}
+.clean-start>p {color:#6e6e73;font-size:14px;line-height:1.8;}
+.clean-start-outline {border:1px dashed #d2d2d7;border-radius:16px;padding:30px;margin:30px 0;color:#86868b;min-height:160px;}
+.clean-start-outline>span {font-size:13px;}
+.clean-start-outline>div {height:1px;background:#dedee3;margin:36px 0 16px;}
+.clean-start-outline>small {font-size:11px;}
+.clean-start-actions {display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;}
+@media(max-width:734px){.clean-start {padding-top:24px;}.clean-start h1 {font-size:30px;}}

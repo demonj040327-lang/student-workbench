@@ -8,7 +8,7 @@ export type StoredAsset = {
   blob: Blob;
 };
 
-const DATABASE_NAME = 'student-workbench-assets';
+const DATABASE_NAME = 'student-workbench-app-assets-v1';
 const STORE_NAME = 'assets';
 let databasePromise: Promise<IDBDatabase> | undefined;
 

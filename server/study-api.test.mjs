@@ -6,20 +6,30 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {parseDocument, askDocument, planAssignment, studyStatus, createStudyMiddleware} from './study-api.mjs';
+import {parseDocument, askDocument, planAssignment, studyStatus, createStudyMiddleware, personalModelEnv, generateGuidance} from './study-api.mjs';
 
 const exec = promisify(execFile);
 const python = process.env.STUDY_PYTHON_BIN || '/Users/jiangge/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3';
 const textPayload = {courseId: 'fixture', name: 'notes.txt', contentBase64: Buffer.from('A good interview starts with voluntary consent.\n\nAn interview can be semi-structured.').toString('base64')};
 
-test('real course PDF and PPTX extract and cover every page with valid source self-checks', async () => {
-  for (const [courseId, name, url, expected] of [
-    ['hci', 'lecture.pdf', '/course-materials/hci-week-2.pdf', 79],
-    ['cgr', 'lecture.pptx', '/course-materials/cgr-lecture-3.pptx', 57],
-    ['cgr', 'notes.pdf', '/course-materials/cgr-lecture-3-notes.pdf', 7],
-  ]) {
-    const document = await parseDocument({courseId, name, url});
-    assert.equal(document.pages.length, expected);
+test('self-contained uploaded PDF covers each page with valid source self-checks', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'study-pdf-fixture-'));
+  try {
+    const code = `import sys
+from pathlib import Path
+from pypdf import PdfWriter
+from pypdf.generic import NameObject, DictionaryObject, DecodedStreamObject
+w=PdfWriter()
+font=w._add_object(DictionaryObject({NameObject('/Type'):NameObject('/Font'),NameObject('/Subtype'):NameObject('/Type1'),NameObject('/BaseFont'):NameObject('/Helvetica')}))
+for text in ['Planning begins with a clear goal.','Evidence connects a claim to observations.','Review checks the result against the goal.']:
+ p=w.add_blank_page(width=400,height=250)
+ p[NameObject('/Resources')]=DictionaryObject({NameObject('/Font'):DictionaryObject({NameObject('/F1'):font})})
+ stream=DecodedStreamObject();stream.set_data(('BT /F1 12 Tf 20 150 Td ('+text+') Tj ET').encode('ascii'))
+ p[NameObject('/Contents')]=w._add_object(stream)
+w.write(Path(sys.argv[1])/'notes.pdf')`;
+    await exec(python,['-c',code,directory]);
+    const document = await parseDocument({courseId:'fixture',name:'notes.pdf',contentBase64:(await readFile(join(directory,'notes.pdf'))).toString('base64')});
+    assert.equal(document.pages.length, 3);
     const covered = new Set(document.units.flatMap(unit => unit.pages));
     assert(document.pages.every(page => covered.has(page.page)));
     for (const unit of document.units) for (const question of unit.questions) {
@@ -27,7 +37,7 @@ test('real course PDF and PPTX extract and cover every page with valid source se
       assert(source.text.includes(question.options[question.answer]));
       assert(question.options.filter((_, index) => index !== question.answer).every(option => !source.text.includes(option)));
     }
-  }
+  } finally {await rm(directory,{recursive:true,force:true});}
 });
 
 test('upload supports TXT and DOCX; blank PDF reports OCR instead of invented units', async () => {
@@ -62,7 +72,7 @@ test('reordered PPTX follows presentation order and ignores unreferenced slide p
 });
 
 test('Chinese course terminology finds English source text within only the selected file', async () => {
-  const mlp = await parseDocument({courseId: 'mlp', name: 'mlp.pdf', url: '/course-materials/mlp-deep-networks-1.pdf'});
+  const mlp = await parseDocument({courseId:'fixture',name:'neural-network.txt',contentBase64:Buffer.from('A neural network uses hidden layers to transform its input features.').toString('base64')});
   for (const question of ['什么是神经网络？', '神经网络为什么需要隐藏层？']) {
     const answer = await askDocument({document: mlp, question, mode: 'local'});
     assert(answer.grounded, question);
@@ -170,6 +180,31 @@ test('mock ELM validates citations and generated plan structure without any outb
   } finally { globalThis.fetch = fetchBefore; }
 });
 
+test('English preference controls new explanations and plans while source quotes stay original', async () => {
+  const previous=globalThis.fetch;
+  const env={ELM_API_KEY:'fixture-only',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'fixture-model'};
+  const document=await parseDocument(textPayload);
+  const local=await askDocument({document,question:'consent',mode:'local',language:'en'});
+  assert(local.answer.startsWith('Found '));
+  assert(local.answer.includes('voluntary consent'));
+  try {
+    globalThis.fetch=async(_,options)=>{
+      const body=JSON.parse(options.body);assert(body.messages[0].content.includes('用英文'));assert(body.messages[0].content.includes('[p. N]'));
+      return new Response(JSON.stringify({choices:[{message:{content:'Consent is voluntary. [p. 1]'}}]}));
+    };
+    const answer=await askDocument({document,question:'consent',mode:'ai',language:'en',allowExternal:true},{env});
+    assert.equal(answer.grounded,true);assert(answer.answer.includes('[p. 1]'));
+    globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:'Invalid page. [p. 999]'}}]}));
+    await assert.rejects(askDocument({document,question:'consent',mode:'ai',language:'en',allowExternal:true},{env}),/引用/);
+    globalThis.fetch=async(_,options)=>{
+      const body=JSON.parse(options.body);assert(body.messages[0].content.includes('用英文'));assert(body.messages[0].content.includes('保留原文语言'));
+      return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({steps:[1,2,3].map(i=>({title:`Read step ${i}`,output:'A short note',sourceQuote:'Review two user journeys.',minutes:20}))})}}]}));
+    };
+    const plan=await planAssignment({courseId:'fixture',title:'Plan',brief:'Review two user journeys. Write a report with references.',language:'en',allowExternal:true},{env});
+    assert.equal(plan.steps[0].sourceQuote,'Review two user journeys.');
+  }finally{globalThis.fetch=previous;}
+});
+
 test('Qwen options stay server side and incomplete model output is rejected', async () => {
   const previous = globalThis.fetch;
   const env = {ELM_API_KEY:'fixture-only',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'Qwen/fixture',ELM_ENABLE_THINKING:'false',ELM_JSON_MODE:'json_object',STUDY_ANSWER_MAX_TOKENS:'128',STUDY_PLAN_MAX_TOKENS:'1024'};
@@ -195,4 +230,51 @@ test('Qwen options stay server side and incomplete model output is rejected', as
     globalThis.fetch = async () => new Response(JSON.stringify({choices:[{finish_reason:'length',message:{content:null}}]}));
     await assert.rejects(askDocument({document,question:'consent',mode:'ai',allowExternal:true},{env}),/长度上限/);
   } finally {globalThis.fetch=previous;}
+});
+
+test('student AI requires a personal key and never falls back to teacher credentials', async () => {
+  const env={ELM_API_KEY:'teacher-key-fixture',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'teacher-model',ELM_CREDENTIAL_CONFIG:'/unused-fixture'};
+  const doc=await parseDocument(textPayload);
+  await assert.rejects(askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student'},{env}),/自己的 ELM/);
+  assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'bad\nkey',model:'fixture'}},env),/格式/);
+  assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'fixture',model:'bad model'}},env),/格式/);
+  assert.equal(personalModelEnv({credentialScope:'teacher'},env),env);
+  const previous=globalThis.fetch;
+  const keys=[];
+  try {
+    globalThis.fetch=async(url,options)=>{
+      assert.equal(url,'http://127.0.0.1:9999/v1/chat/completions');
+      keys.push(options.headers.Authorization);
+      assert.equal(JSON.parse(options.body).model,'student-model');
+      return new Response(JSON.stringify({choices:[{message:{content:'Consent is voluntary. [p. 1]'}}]}));
+    };
+    for(const key of ['student-one-fixture','student-two-fixture']) {
+      const result=await askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student',personalApi:{key,model:'student-model',baseUrl:'https://ignored.invalid'},language:'en'},{env});
+      assert.equal(result.grounded,true);
+      assert(!JSON.stringify(result).includes(key));
+    }
+    assert.deepEqual(keys,['Bearer student-one-fixture','Bearer student-two-fixture']);
+    assert.equal(env.ELM_API_KEY,'teacher-key-fixture');
+    const local=await askDocument({document:doc,question:'consent',mode:'local',credentialScope:'student'},{env});
+    assert.equal(local.mode,'local');
+  }finally{globalThis.fetch=previous;}
+});
+
+test('teacher guidance generation reuses a parsed document, validates citations and language', async () => {
+  const doc=await parseDocument(textPayload);
+  const previous=globalThis.fetch;
+  const env={ELM_API_KEY:'teaching-fixture',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'fixture-model'};
+  const unit={title:'Consent',pages:[1],overview:'Participation is voluntary.',points:['Ask for informed consent.'],readingSteps:['Read the consent statement.'],questions:[{prompt:'What is required?',options:['Voluntary consent','Compulsory participation','No explanation','Only a deadline'],answer:0,explanation:'The material states voluntary consent.',sourcePages:[1]}]};
+  try {
+    await assert.rejects(generateGuidance({document:doc,credentialScope:'teacher'},{env}),/允许/);
+    globalThis.fetch=async(_,options)=>{
+      const body=JSON.parse(options.body);assert(body.messages[0].content.includes('用英文'));
+      return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({units:[unit]})}}]}));
+    };
+    const result=await generateGuidance({document:doc,language:'en',allowExternal:true,credentialScope:'teacher'},{env});
+    assert.equal(result.id,doc.id);assert.equal(result.mode,'ai');assert.equal(result.units[0].questions[0].answer,0);
+    assert.deepEqual(result.units[0].pages,[1]);
+    globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({units:[{...unit,pages:[900]}]})}}]}));
+    await assert.rejects(generateGuidance({document:doc,allowExternal:true,credentialScope:'teacher'},{env}),/页码/);
+  }finally{globalThis.fetch=previous;}
 });

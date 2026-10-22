@@ -1,7 +1,8 @@
+import {readLanguage} from './i18n';
 import type {StudySource} from './studyTypes';
 
 export async function studyRequest<T>(path: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/api/study/${path}`, {method: payload === undefined ? 'GET' : 'POST', headers: payload === undefined ? undefined : {'Content-Type': 'application/json'}, body: payload === undefined ? undefined : JSON.stringify(payload), signal});
+  const response = await fetch(`/api/study/${path}`, {method: payload === undefined ? 'GET' : 'POST', headers: payload === undefined ? undefined : {'Content-Type': 'application/json'}, body: payload === undefined ? undefined : JSON.stringify({...payload as Record<string,unknown>,language:readLanguage()}), signal});
   if (!(response.headers.get('content-type') || '').includes('application/json')) throw new Error('学习服务暂时无法连接，请检查本机服务后重试。');
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '请求失败，请稍后重试。');

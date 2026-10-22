@@ -1,6 +1,6 @@
 import type { StudyDocument, StudyProgress, StudySource } from './studyTypes';
 
-const DATABASE = 'student-workbench-study';
+const DATABASE = 'student-workbench-app-study-v1';
 let databasePromise: Promise<IDBDatabase> | undefined;
 const deletedSources = new Set<string>();
 
