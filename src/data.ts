@@ -1,6 +1,6 @@
 export type Course = { id: string; name: string; subject: string; code: string; color: string; materialName?: string; topic?: string };
 export type Step = { id: string; title: string; minutes: number; day: number; done: boolean; blocked: boolean; evidence: string; source: string };
-export type Assignment = { id: string; courseId: string; title: string; due: string; steps: Step[]; brief: string; planOnly?: boolean; category?:'coursework'|'review'; deadlineVerified?:boolean; deadlineSource?:string; deadlineLabel?:string; originalDue?:string; startsOn?:string; gradeWeight?:number; briefUrl?:string; briefPage?:number };
+export type Assignment = { id: string; courseId: string; title: string; due: string; steps: Step[]; brief: string; planOnly?: boolean; category?:'coursework'|'review'; deadlineVerified?:boolean; deadlineSource?:string; deadlineLabel?:string; originalDue?:string; startsOn?:string; gradeWeight?:number; briefUrl?:string; briefPage?:number; coursework?: { status: "draft"|"published"; releaseAt:string; dueAt:string; timezone:string; submissionType:string; deliverables:string; rubric:string; document?:import("./studyTypes").StudyDocument; revisions:{at:string;before:string;after:string}[] } };
 export type Semester = {name:string;start:string;end:string};
 export const defaultSemester:Semester={name:'2026 秋季学期',start:'2026-09-21',end:'2026-12-21'};
 export type Note = { id: string; courseId: string; text: string; createdAt: string };

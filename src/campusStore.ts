@@ -37,6 +37,7 @@ export type StudentProgress = {
   units: Record<string, boolean>;
   answers: Record<string, { option: number; checked: boolean }>;
   dismissed: string[];
+  submitted?: Record<string,string>;
 };
 export type PersonalApi = { key: string; model: string };
 export const emptyProgress = (): StudentProgress => ({
@@ -245,7 +246,7 @@ export function studentAssignments(
   data: CampusData,
   progress: StudentProgress,
 ) {
-  return data.assignments.map((a) => ({
+  return data.assignments.filter(a=>!a.coursework || (a.coursework.status === "published" && Date.parse(a.coursework.releaseAt)<=Date.now())).map((a) => ({
     ...a,
     steps: a.steps.map((s) => ({ ...s, done: progress.steps[s.id] ?? s.done })),
   }));

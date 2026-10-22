@@ -7,6 +7,7 @@ import Icon from './CampusIcons';
 import { Alert, CampusDialog, Empty } from './CampusUI';
 
 type Props = {
+  onCoursework: () => void;
   course: CampusCourse;
   materials: CampusMaterial[];
   onSave: (material: CampusMaterial) => Promise<void>;
@@ -15,6 +16,7 @@ type Props = {
   onConnect: () => void;
 };
 export default function CampusTeacher({
+  onCoursework,
   course,
   materials,
   onSave,
@@ -174,6 +176,12 @@ export default function CampusTeacher({
         ))}
       </div>
       <section className="cp-card cp-upload-card">
+        <div className="cp-form-actions" style={{ marginBottom: 20 }}>
+          <span className="cp-tag">{t('课程课件')}</span>
+          <button className="cp-button" onClick={onCoursework}>
+            Coursework / 上传作业说明 →
+          </button>
+        </div>
         <div className="cp-section-heading">
           <div>
             <h2>{t('上传本周课件')}</h2>

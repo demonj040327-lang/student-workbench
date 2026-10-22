@@ -1,3 +1,5 @@
+import CourseworkEditor from './CourseworkEditor';
+import CampusLearning from './CampusLearning';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LanguageSwitcher, useI18n } from './i18n';
 import {
@@ -27,7 +29,7 @@ import {
   type PersonalApi,
   type StudentProgress,
 } from './campusStore';
-import CampusLearning from './CampusLearning';
+
 import CampusTeacher from './CampusTeacher';
 import Icon from './CampusIcons';
 import { Alert, CampusDialog, Empty, Meter } from './CampusUI';
@@ -79,6 +81,15 @@ export default function CampusApp() {
     'api' | 'course' | 'assignment' | 'semester' | null
   >(null);
   const [assignmentId, setAssignmentId] = useState('');
+  const [editCoursework, setEditCoursework] = useState<
+    Assignment | undefined
+  >();
+  const [assignmentQuestion, setAssignmentQuestion] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => tick((v) => v + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [api, setApi] = useState<Record<CampusRole, PersonalApi | null>>({
@@ -109,12 +120,13 @@ export default function CampusApp() {
   const activeMaterial = visibleMaterials.find(
     (m) => m.id === materialId && m.courseId === currentCourse?.id,
   );
-  const selectedAssignment = assignments.find((a) => a.id === assignmentId);
+  const selectedAssignment = (role === "teacher" ? teachingAssignments : assignments).find((a) => a.id === assignmentId);
   const dueSoon = assignments
-    .filter((a) => a.due && dateDays(a.due) <= 7 && courseworkProgress(a) < 100)
+    .filter((a) => a.due && dateDays(a.due) <= 7 && !progress.submitted?.[a.id])
     .sort((a, b) => a.due.localeCompare(b.due));
   const unread = dueSoon.filter(
-    (a) => !progress.dismissed.includes(`${a.id}:${a.due}`),
+    (a) =>
+      !progress.dismissed.includes(`${a.id}:${a.coursework?.dueAt || a.due}`),
   );
   const materialCounts = (id: string) =>
     visibleMaterials.filter((m) => m.courseId === id);
@@ -416,7 +428,9 @@ export default function CampusApp() {
                     dismissed: [
                       ...new Set([
                         ...p.dismissed,
-                        ...dueSoon.map((a) => `${a.id}:${a.due}`),
+                        ...dueSoon.map(
+                          (a) => `${a.id}:${a.coursework?.dueAt || a.due}`,
+                        ),
                       ]),
                     ],
                   }))
@@ -436,7 +450,9 @@ export default function CampusApp() {
               >
                 <i
                   className={
-                    progress.dismissed.includes(`${a.id}:${a.due}`)
+                    progress.dismissed.includes(
+                      `${a.id}:${a.coursework?.dueAt || a.due}`,
+                    )
                       ? 'read'
                       : ''
                   }
@@ -750,6 +766,10 @@ export default function CampusApp() {
                   {currentCourse ? (
                     role === 'teacher' ? (
                       <CampusTeacher
+                        onCoursework={() => {
+                          setEditCoursework(undefined);
+                          setDialog('assignment');
+                        }}
                         key={currentCourse.id}
                         course={currentCourse}
                         materials={materialCounts(currentCourse.id)}
@@ -927,7 +947,10 @@ export default function CampusApp() {
                 </div>
                 <button
                   className="cp-button primary"
-                  onClick={() => setDialog('assignment')}
+                  onClick={() => {
+                    setEditCoursework(undefined);
+                    setDialog('assignment');
+                  }}
                   disabled={!viewCourses.length}
                 >
                   <Icon name="plus" size={17} />
@@ -960,6 +983,23 @@ export default function CampusApp() {
                       {t('查看要求')}
                       <Icon name="chevron" size={15} />
                     </button>
+                    <button
+                      className="cp-button"
+                      onClick={() => {
+                        setEditCoursework(a);
+                        setDialog('assignment');
+                      }}
+                    >
+                      {t('检查与编辑')}
+                    </button>
+                    <span className="cp-status">
+                      {a.coursework?.status === 'draft'
+                        ? t('草稿')
+                        : a.coursework &&
+                            Date.parse(a.coursework.releaseAt) > Date.now()
+                          ? 'Scheduled / 定时发布'
+                          : t('已发布')}
+                    </span>
                   </article>
                 ))}
                 {!teachingAssignments.length && (
@@ -1029,15 +1069,26 @@ export default function CampusApp() {
       )}
       {dialog === 'assignment' && (
         <CampusDialog title={t('发布作业')} onClose={() => setDialog(null)}>
-          <NewAssignment
+          <CourseworkEditor
             courses={viewCourses}
+            initial={editCoursework}
+            api={api.teacher}
+            hostConfigured={status.aiConfigured}
+            onConnect={() => setDialog('api')}
             onSave={(assignment) => {
               setData((d) => ({
                 ...d,
-                assignments: [...d.assignments, assignment],
+                assignments: [
+                  ...d.assignments.filter((a) => a.id !== assignment.id),
+                  assignment,
+                ],
               }));
               setDialog(null);
-              setNotice('作业已发布，已加入学生的时间轴与提醒。');
+              setNotice(
+                assignment.coursework?.status === 'draft'
+                  ? '草稿已保存，学生暂不可见。'
+                  : '作业已发布，已加入学生的时间轴与提醒。',
+              );
             }}
           />
         </CampusDialog>
@@ -1056,7 +1107,10 @@ export default function CampusApp() {
       {selectedAssignment && (
         <CampusDialog
           title={t(role === 'student' ? '作业进度' : '作业要求')}
-          onClose={() => setAssignmentId('')}
+          onClose={() => {
+            setAssignmentId('');
+            setAssignmentQuestion(false);
+          }}
         >
           <div className="cp-assignment-detail">
             <span className="cp-eyebrow">
@@ -1066,6 +1120,84 @@ export default function CampusApp() {
               }
             </span>
             <h3>{t(selectedAssignment.title)}</h3>
+            <p className="cp-muted">
+              {selectedAssignment.coursework?.dueAt}{' '}
+              {selectedAssignment.coursework ? 'UTC' : ''}
+            </p>
+            {selectedAssignment.coursework && (
+              <>
+                <p>{selectedAssignment.coursework.submissionType}</p>
+                <p>{selectedAssignment.coursework.deliverables}</p>
+                <p>{selectedAssignment.coursework.rubric}</p>
+                {selectedAssignment.coursework.revisions.map((r, i) => (
+                  <p key={i} className="cp-info">
+                    Deadline updated / 截止时间更新：{r.before} → {r.after}
+                  </p>
+                ))}
+              </>
+            )}
+            {role === 'student' && (
+              <>
+                <label className="cp-check-label">
+                  <input
+                    type="checkbox"
+                    checked={!!progress.submitted?.[selectedAssignment.id]}
+                    onChange={(e) =>
+                      setProgress((p) => ({
+                        ...p,
+                        submitted: {
+                          ...p.submitted,
+                          [selectedAssignment.id]: e.target.checked
+                            ? new Date().toISOString()
+                            : '',
+                        },
+                      }))
+                    }
+                  />
+                  我已在学校系统提交 / Submitted in the university system
+                </label>
+                <p className="cp-fineprint">
+                  此为手动记录，不会向学校提交文件。步骤完成与实际提交分别记录。
+                </p>
+                {selectedAssignment.coursework?.dueAt &&
+                  Date.parse(selectedAssignment.coursework.dueAt) <
+                    Date.now() && <p className="cp-info">已截止 / Closed</p>}
+                {selectedAssignment.coursework?.document && (
+                  <button
+                    className="cp-button"
+                    onClick={() => setAssignmentQuestion(!assignmentQuestion)}
+                  >
+                    作业说明问答 / Brief Q&amp;A
+                  </button>
+                )}
+              </>
+            )}
+            {assignmentQuestion && selectedAssignment.coursework?.document && (
+              <CampusLearning
+                key={selectedAssignment.id}
+                material={{
+                  id: selectedAssignment.id,
+                  courseId: selectedAssignment.courseId,
+                  title: selectedAssignment.title,
+                  week: 1,
+                  name: selectedAssignment.coursework.document.name,
+                  status: 'published',
+                  document: {
+                    ...selectedAssignment.coursework.document,
+                    units: [],
+                  },
+                  updatedAt: new Date().toISOString(),
+                }}
+                progress={progress}
+                onProgress={setProgress}
+                api={api.student}
+                onConnect={() => {
+                  setAssignmentId('');
+                  setDialog('api');
+                }}
+                onBack={() => setAssignmentQuestion(false)}
+              />
+            )}
             <p>
               {t('截止日期')} · {selectedAssignment.due}
             </p>
@@ -1169,8 +1301,7 @@ function CourseCards({
                 <span>
                   <Icon name="file" size={14} />
                   {t('{count} 份资料', {
-                    count: materials.filter((m) => m.courseId === c.id)
-                      .length,
+                    count: materials.filter((m) => m.courseId === c.id).length,
                   })}
                 </span>
                 <span>
