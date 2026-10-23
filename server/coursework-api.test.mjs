@@ -32,3 +32,20 @@ test('coursework planning honours output settings and rejects truncated output w
   await assert.rejects(planAssignment(payload,{env}),/长度上限/);
  }finally{globalThis.fetch=previous;}
 });
+
+test('valid short guidance is accepted across many slides without relaxing coverage or citation checks',async()=>{
+ const {generateGuidance}=await import('./study-api.mjs');
+ const doc={id:'short-guidance-fixture',courseId:'fixture',name:'slides.pdf',pages:Array.from({length:6},(_,i)=>({page:i+1,title:'Consent',text:'Participation is voluntary. Obtain informed consent.'}))};
+ const unit={title:'Consent',overview:'Participation is voluntary.',points:['Obtain consent.'],readingSteps:['Read the source.'],questions:[{prompt:'What is required?',options:['Consent','Payment','A grade','A deadline'],answer:0,explanation:'The source states informed consent.',sourcePages:[1]}]};
+ const old=globalThis.fetch;
+ let output={units:[{...unit,pages:[1,2,3]},{...unit,pages:[4,5,6]}]};
+ try{
+  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(output)}}]}));
+  const payload={document:doc,allowExternal:true,credentialScope:'teacher'};
+  const r=await generateGuidance(payload,{env});assert.equal(r.units.length,2);
+  output={units:[{...unit,pages:[1,2,3,4,5,6]}]};assert.equal((await generateGuidance(payload,{env})).units.length,1);
+  output={units:[{...unit,pages:[1]}]};await assert.rejects(generateGuidance(payload,{env}),/未覆盖/);
+  output={units:Array.from({length:6},()=>({...unit,pages:[1,2,3,4,5,6]}))};await assert.rejects(generateGuidance(payload,{env}),/1–5/);
+  output={units:[null]};await assert.rejects(generateGuidance(payload,{env}),/模块格式/);
+ }finally{globalThis.fetch=old;}
+});
