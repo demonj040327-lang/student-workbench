@@ -1,3 +1,4 @@
+import {draftOperation} from './courseworkDraft';
 import { useEffect, useRef, useState } from 'react';
 import type { Assignment } from './data';
 import type { CampusCourse, PersonalApi } from './campusStore';
@@ -10,6 +11,7 @@ type Field = { value: string; page: number; quote: string };
 export default function CourseworkEditor({
   courses,
   initial,
+  autoGenerate = false,
   api,
   hostConfigured,
   onConnect,
@@ -17,6 +19,7 @@ export default function CourseworkEditor({
 }: {
   courses: CampusCourse[];
   initial?: Assignment;
+  autoGenerate?: boolean;
   api: PersonalApi | null;
   hostConfigured: boolean;
   onConnect: () => void;
@@ -31,7 +34,7 @@ export default function CourseworkEditor({
   const [brief, setBrief] = useState(initial?.brief || '');
   const [release, setRelease] = useState(
     initial?.coursework?.releaseAt?.slice(0, 16) ||
-      new Date().toISOString().slice(0, 16),
+      '',
   );
   const [due, setDue] = useState(
     initial?.coursework?.dueAt?.slice(0, 16) ||
@@ -60,8 +63,14 @@ export default function CourseworkEditor({
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const [draftReady,setDraftReady]=useState(false);
+  const finished=useRef(false);
+  const draftKey=(new URLSearchParams(location.search).get('demo')==='1'?'demo:':'personal:')+(initial?.id||'new:'+courses.map(c=>c.id).join(','));
+  useEffect(()=>{let live=true;draftOperation(draftKey,'read').then(d=>{if(!live)return;if(d&&courses.some(c=>c.id===d.course)){setCourse(d.course);setTitle(d.title);setBrief(d.brief);setRelease(d.release);setDue(d.due);setType(d.submissionType);setDeliverables(d.deliverables);setRubric(d.rubric);setSteps(d.steps);setDocument(d.document);setFields(d.fields);setConfirmed(false);}setDraftReady(true);}).catch(()=>{if(live){setError(tr('无法恢复草稿，请检查浏览器存储。','Draft recovery is unavailable. Check browser storage.'));setDraftReady(true);}});return()=>{live=false;};},[]);
+  useEffect(()=>{if(!draftReady||finished.current)return;const timer=setTimeout(()=>{if(!finished.current)void draftOperation(draftKey,'write',{course,title,brief,release,due,submissionType,deliverables,rubric,steps,document,fields}).catch(()=>setError(tr('草稿未能自动保存，请勿刷新页面。','Draft could not be saved. Do not refresh.')));},350);return()=>clearTimeout(timer);},[draftReady,course,title,brief,release,due,submissionType,deliverables,rubric,steps,document,fields]);
+
   useEffect(() => () => controller.current?.abort(), []);
-  async function run(action: 'extract' | 'plan') {
+  async function run() {
     if (!document) return;
     if (!effectiveApi && !hostConfigured) {
       setError(
@@ -82,58 +91,30 @@ export default function CourseworkEditor({
         ...(effectiveApi ? { personalApi: effectiveApi } : {}),
         allowExternal: true,
       };
-      if (action === 'extract') {
-        const r = await studyRequest<{ fields: Record<string, Field> }>(
-          'coursework',
-          { document, ...credentials },
-          c.signal,
-        );
-        if (c.signal.aborted) return;
-        setFields(r.fields);
-        if (r.fields.title.value) setTitle(r.fields.title.value);
-        setType(r.fields.submissionType.value);
-        setDeliverables(r.fields.deliverables.value);
-        setRubric(r.fields.rubric.value);
-        setConfirmed(false);
-      } else {
-        const r = await studyRequest<{
-          steps: {
-            title: string;
-            output: string;
-            sourceQuote: string;
-            minutes: number;
-            sourcePage: number;
-          }[];
-        }>(
-          'plan',
-          {
-            document,
-            courseId: course,
-            title: title || document.name,
-            ...credentials,
-          },
-          c.signal,
-        );
-        if (c.signal.aborted) return;
-        setSteps(
-          r.steps.map((s, i) => ({
-            id: uid(),
-            title: s.title,
-            evidence: s.output,
-            source: `p.${s.sourcePage}: ${s.sourceQuote}`,
-            minutes: s.minutes,
-            day: i,
-            done: false,
-            blocked: false,
-          })),
-        );
-      }
+      const r = await studyRequest<{fields:Record<string,Field>;warnings?:string[]}>('coursework', {document, ...credentials, language, mode:'teacher-summary'}, c.signal);
+      if(c.signal.aborted) return;
+      setFields(r.fields);
+      if(r.warnings?.length)setError(r.warnings.join(' '));
+      if(r.fields.title?.value) setTitle(r.fields.title.value.slice(0,150));
+      if(r.fields.introduction?.value) setBrief(r.fields.introduction.value);
+      // Only explicit, normalised UTC dates can populate scheduling inputs.
+      const iso = (value:string|undefined) => value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/.test(value) && Number.isFinite(Date.parse(value)) ? value.slice(0,16) : '';
+      setRelease(iso(r.fields.release?.value));
+      setDue(iso(r.fields.deadline?.value));
+      setConfirmed(false);
     } catch (e) {
       if (!c.signal.aborted) setError(errorMessage(e));
     } finally {
       if (!c.signal.aborted) setBusy(false);
     }
   }
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if(autoGenerate && draftReady && document && !autoStarted.current) {
+      autoStarted.current=true;
+      void run();
+    }
+  }, [autoGenerate, draftReady, document]);
   async function upload(file?: File) {
     if (!file) return;
     setBusy(true);
@@ -158,7 +139,7 @@ export default function CourseworkEditor({
       const doc = await studyRequest<StudyDocument>('parse', payload, c.signal);
       if (!c.signal.aborted) {
         setDocument(doc);
-        setBrief(doc.pages.map((p) => p.text).join('\n\n'));
+        setBrief(''); setRelease(''); setDue('');
         if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
       }
     } catch (e) {
@@ -169,35 +150,37 @@ export default function CourseworkEditor({
   }
   function save(status: 'draft' | 'published') {
     setError('');
-    if (!title.trim() || !due || !release) {
+    if (!document || !title.trim() || (status === 'published' && (!brief.trim() || !due || !release))) {
       setError(
         tr(
-          '请填写标题、发布时间和截止时间。',
-          'Enter a title, release time and deadline.',
+          '请上传作业文件并填写标题；发布前请填写介绍、开始时间和截止时间。',
+          'Upload a brief and enter a title. Add an introduction, start time and deadline before publishing.',
         ),
       );
       return;
     }
     const a = Date.parse(release + 'Z'),
       b = Date.parse(due + 'Z');
-    if (!Number.isFinite(a) || !Number.isFinite(b) || a >= b) {
+    if ((release && !Number.isFinite(a)) || (due && !Number.isFinite(b)) || (release && due && a >= b)) {
       setError(
         tr('截止时间必须晚于发布时间。', 'The deadline must follow release.'),
       );
       return;
     }
-    if (status === 'published' && (!confirmed || !steps.length)) {
+    if (status === 'published' && !confirmed) {
       setError(
         tr(
-          '发布前请确认日期和要求，并至少添加一个步骤。',
-          'Confirm the requirements and dates and add at least one step.',
+          '发布前请核对作业介绍、开始时间与截止时间。',
+          'Confirm the introduction, start time and deadline before publishing.',
         ),
       );
       return;
     }
     const id = initial?.id || uid();
     const before = initial?.coursework?.dueAt || initial?.due || '';
-    const after = due + 'Z';
+    const after = due ? due + ':00Z' : '';
+    finished.current=true;
+    void draftOperation(draftKey,'delete').catch(()=>{});
     onSave({
       ...initial,
       id,
@@ -211,7 +194,7 @@ export default function CourseworkEditor({
       steps,
       coursework: {
         status,
-        releaseAt: release + 'Z',
+        releaseAt: release ? release + ':00Z' : '',
         dueAt: after,
         timezone: 'UTC',
         submissionType,
@@ -229,10 +212,11 @@ export default function CourseworkEditor({
   }
   return (
     <div className="cp-form">
+      <p className="cp-fineprint">{tr("编辑内容自动保存在本机；刷新后可恢复。API Key 不保存。","Edits are saved locally and can be restored after refresh. API keys are never saved.")}</p>
       <p className="cp-info">
         {tr(
-          '上传 Coursework / 作业说明，提取要求后由教师确认日期。所有时间明确使用 UTC。',
-          'Upload a coursework brief, then confirm the requirements and dates. All times use UTC.',
+          '上传作业文件，AI 生成介绍并提取起止时间，确认后即可发布。评分标准和学习步骤由学生端按需解析。',
+          'Upload a brief, generate an introduction and extract dates, then confirm and publish. Students analyse marking criteria and learning steps separately.',
         )}
       </p>
       <details>
@@ -299,9 +283,9 @@ export default function CourseworkEditor({
           <button
             className="cp-button"
             disabled={busy}
-            onClick={() => void run('extract')}
+            onClick={() => void run()}
           >
-            {tr('AI 提取作业要求', 'Extract coursework requirements')}
+            {tr('AI 生成介绍与提取日期', 'Generate introduction & extract dates')}
           </button>
           <details>
             <summary>{tr('核对作业原文', 'Check original brief')}</summary>
@@ -324,7 +308,7 @@ export default function CourseworkEditor({
               'Extracted fields and evidence (confirm dates manually)',
             )}
           </summary>
-          {Object.entries(fields).map(([key, f]) => (
+          {Object.entries(fields).filter(([key]) => ['title','introduction','release','deadline','timezone'].includes(key)).map(([key, f]) => (
             <div
               key={key}
               style={{ padding: '10px 0', borderBottom: '1px solid #e4e5eb' }}
@@ -334,7 +318,8 @@ export default function CourseworkEditor({
                   (
                     {
                       title: '标题 / Title',
-                      release: '发布时间 / Release',
+                      introduction: '作业介绍 / Introduction',
+                      release: '开始时间 / Start',
                       deadline: '截止时间 / Deadline',
                       timezone: '时区 / Timezone',
                       submissionType: '个人或小组 / Individual or group',
@@ -373,7 +358,7 @@ export default function CourseworkEditor({
       </label>
       <div className="cp-form-row">
         <label>
-          {tr('发布时间（UTC）', 'Release time (UTC)')}
+          {tr('开始时间（UTC）', 'Start time (UTC)')}
           <input
             type="datetime-local"
             value={release}
@@ -402,108 +387,9 @@ export default function CourseworkEditor({
         )}
       </p>
       <label>
-        {tr('个人或小组作业', 'Individual or group work')}
-        <input
-          value={submissionType}
-          onChange={(e) => {
-            setType(e.target.value);
-            setConfirmed(false);
-          }}
-        />
+        {tr('作业介绍', 'Coursework introduction')}
+        <textarea rows={4} maxLength={6000} value={brief} onChange={e=>{setBrief(e.target.value);setConfirmed(false);}} />
       </label>
-      <label>
-        {tr('需要提交的内容', 'Deliverables')}
-        <textarea
-          rows={3}
-          value={deliverables}
-          onChange={(e) => {
-            setDeliverables(e.target.value);
-            setConfirmed(false);
-          }}
-        />
-      </label>
-      <label>
-        {tr('评分标准', 'Marking criteria')}
-        <textarea
-          rows={3}
-          value={rubric}
-          onChange={(e) => {
-            setRubric(e.target.value);
-            setConfirmed(false);
-          }}
-        />
-      </label>
-      <label>
-        {t('作业要求')}
-        <textarea
-          rows={4}
-          value={brief}
-          onChange={(e) => {
-            setBrief(e.target.value);
-            setConfirmed(false);
-          }}
-        />
-      </label>
-      <div className="cp-form-actions">
-        <button
-          className="cp-button"
-          disabled={busy || !document}
-          onClick={() => void run('plan')}
-        >
-          {tr('AI 拆解作业步骤', 'Generate coursework steps')}
-        </button>
-        <button
-          className="cp-button"
-          disabled={busy}
-          onClick={() =>
-            setSteps((s) => [
-              ...s,
-              {
-                id: uid(),
-                title: '',
-                minutes: 30,
-                day: s.length,
-                done: false,
-                blocked: false,
-                evidence: '',
-                source: '',
-              },
-            ])
-          }
-        >
-          {tr('添加步骤', 'Add step')}
-        </button>
-      </div>
-      {steps.map((s, i) => (
-        <div key={s.id}>
-          <label>
-            {tr('步骤', 'Step')} {i + 1}
-            <input
-              value={s.title}
-              onChange={(e) =>
-                setSteps((all) =>
-                  all.map((v) =>
-                    v.id === s.id ? { ...v, title: e.target.value } : v,
-                  ),
-                )
-              }
-            />
-          </label>
-          <small>{s.evidence}</small>
-          {s.source && (
-            <details>
-              <summary>{tr('查看来源', 'View evidence')}</summary>
-              {s.source}
-            </details>
-          )}
-          <button
-            className="cp-link"
-            onClick={() => setSteps((all) => all.filter((v) => v.id !== s.id))}
-          >
-            {tr('移除步骤', 'Remove step')}
-          </button>
-        </div>
-      ))}
       <label className="cp-check-label">
         <input
           type="checkbox"
@@ -511,8 +397,8 @@ export default function CourseworkEditor({
           onChange={(e) => setConfirmed(e.target.checked)}
         />
         {tr(
-          '我已核对日期、时区、提交要求与步骤。',
-          'I have checked the dates, timezone, requirements and steps.',
+          '我已核对作业介绍、开始时间、截止时间与时区。',
+          'I have checked the introduction, start time, deadline and timezone.',
         )}
       </label>
       {error && <Alert>{error}</Alert>}
@@ -520,14 +406,14 @@ export default function CourseworkEditor({
       <div className="cp-form-actions">
         <button
           className="cp-button"
-          disabled={busy}
+          disabled={busy || !draftReady}
           onClick={() => save('draft')}
         >
           {t('保存为草稿')}
         </button>
         <button
           className="cp-button primary"
-          disabled={busy || steps.some((s) => !s.title.trim())}
+          disabled={busy || !draftReady}
           onClick={() => save('published')}
         >
           {t('发布给学生')}
