@@ -1,3 +1,4 @@
+import {draftOperation} from './courseworkDraft';
 import { useEffect, useRef, useState } from 'react';
 import type { Assignment } from './data';
 import type { CampusCourse, PersonalApi } from './campusStore';
@@ -60,6 +61,12 @@ export default function CourseworkEditor({
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const [draftReady,setDraftReady]=useState(false);
+  const finished=useRef(false);
+  const draftKey=(new URLSearchParams(location.search).get('demo')==='1'?'demo:':'personal:')+(initial?.id||'new');
+  useEffect(()=>{let live=true;draftOperation(draftKey,'read').then(d=>{if(!live)return;if(d&&courses.some(c=>c.id===d.course)){setCourse(d.course);setTitle(d.title);setBrief(d.brief);setRelease(d.release);setDue(d.due);setType(d.submissionType);setDeliverables(d.deliverables);setRubric(d.rubric);setSteps(d.steps);setDocument(d.document);setFields(d.fields);setConfirmed(false);}setDraftReady(true);}).catch(()=>{if(live){setError(tr('无法恢复草稿，请检查浏览器存储。','Draft recovery is unavailable. Check browser storage.'));setDraftReady(true);}});return()=>{live=false;};},[]);
+  useEffect(()=>{if(!draftReady||finished.current)return;const timer=setTimeout(()=>{if(!finished.current)void draftOperation(draftKey,'write',{course,title,brief,release,due,submissionType,deliverables,rubric,steps,document,fields}).catch(()=>setError(tr('草稿未能自动保存，请勿刷新页面。','Draft could not be saved. Do not refresh.')));},350);return()=>clearTimeout(timer);},[draftReady,course,title,brief,release,due,submissionType,deliverables,rubric,steps,document,fields]);
+
   useEffect(() => () => controller.current?.abort(), []);
   async function run(action: 'extract' | 'plan') {
     if (!document) return;
@@ -198,6 +205,8 @@ export default function CourseworkEditor({
     const id = initial?.id || uid();
     const before = initial?.coursework?.dueAt || initial?.due || '';
     const after = due + 'Z';
+    finished.current=true;
+    void draftOperation(draftKey,'delete').catch(()=>{});
     onSave({
       ...initial,
       id,
@@ -229,6 +238,7 @@ export default function CourseworkEditor({
   }
   return (
     <div className="cp-form">
+      <p className="cp-fineprint">{tr("编辑内容自动保存在本机；刷新后可恢复。API Key 不保存。","Edits are saved locally and can be restored after refresh. API keys are never saved.")}</p>
       <p className="cp-info">
         {tr(
           '上传 Coursework / 作业说明，提取要求后由教师确认日期。所有时间明确使用 UTC。',
