@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './CampusApp';
+import App from './RoleGate';
 import {I18nProvider} from './i18n';
 import './styles.css';
 import './semester.css';

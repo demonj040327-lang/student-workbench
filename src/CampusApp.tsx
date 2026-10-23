@@ -64,11 +64,16 @@ function dateDays(value: string) {
   );
 }
 
-export default function CampusApp() {
+export default function CampusApp({
+  onLogout,
+}: {
+  onLogout?: () => void;
+}) {
   const { t, locale } = useI18n();
   const [demo] = useState(
     () => new URLSearchParams(location.search).get('demo') === '1',
   );
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [data, setData] = useState(() => loadCampusData(demo));
   const [progress, setProgress] = useState(() => loadCampusProgress(demo));
   const [materials, setMaterials] = useState<CampusMaterial[]>([]);
@@ -223,9 +228,7 @@ export default function CampusApp() {
     history.pushState(null, '', url);
     window.scrollTo({ top: 0 });
   }
-  function switchRole(next: CampusRole) {
-    if (next !== role) navigate('overview', next);
-  }
+
   function openCourse(id: string) {
     setCourseId(id);
     navigate('courses');
@@ -354,13 +357,46 @@ export default function CampusApp() {
             </div>
             <Icon name="chevron" size={15} />
           </button>
+
+
           <div className="cp-profile">
             <span>{role === 'student' ? 'S' : 'T'}</span>
+
             <div>
-              <strong>{t(role === 'student' ? '学生视角' : '教师视角')}</strong>
-              <small>{t('本地交互原型')}</small>
+              <strong>
+                {t(role === 'student' ? '学生视角' : '教师视角')}
+              </strong>
+
+              <small>{t('TeachAthon 演示账号')}</small>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  style={{
+                    marginTop: 10,
+                    padding: '6px 10px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    background: 'transparent',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  退出登录 ↗
+                </button>
+              )}
             </div>
           </div>
+
+
+
+
+
+
+
+
         </div>
       </aside>
       <div className="cp-workspace">
@@ -373,24 +409,12 @@ export default function CampusApp() {
             </strong>
           </div>
           <div className="cp-topbar-tools">
-            <div
-              className="cp-role-switch"
-              role="group"
-              aria-label={t('切换使用视角')}
-            >
-              <button
-                onClick={() => switchRole('student')}
-                aria-pressed={role === 'student'}
-              >
-                {t('学生')}
-              </button>
-              <button
-                onClick={() => switchRole('teacher')}
-                aria-pressed={role === 'teacher'}
-              >
-                {t('教师')}
-              </button>
+            <div className="cp-role-switch" aria-label={t('当前使用身份')}>
+              <span style={{ padding: '8px 16px', fontWeight: 600 }}>
+                {t(role === 'student' ? '学生' : '教师')}
+              </span>
             </div>
+
             <LanguageSwitcher />
             <button
               className="cp-icon-button cp-top-api"
@@ -411,9 +435,58 @@ export default function CampusApp() {
                 {unread.length > 0 && <i />}
               </button>
             )}
-            <span className="cp-top-avatar">
-              {role === 'student' ? 'S' : 'T'}
-            </span>
+
+
+
+
+
+
+            <div className="cp-account-wrapper">
+              <button
+                type="button"
+                className="cp-top-avatar cp-avatar-button"
+                onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                aria-label="打开账号菜单"
+                aria-expanded={accountMenuOpen}
+                aria-haspopup="menu"
+              >
+                {role === 'student' ? 'S' : 'T'}
+              </button>
+
+              {accountMenuOpen && (
+                <div className="cp-account-menu">
+                  <div className="cp-account-info">
+                    <strong>
+                      {role === 'student' ? '演示学生' : '演示教师'}
+                    </strong>
+                    <small>
+                      当前身份：{role === 'student' ? '学生' : '教师'}
+                    </small>
+                  </div>
+
+                  <div className="cp-account-divider" />
+
+                  <button
+                    type="button"
+                    className="cp-account-logout"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      onLogout?.();
+                    }}
+                  >
+                    退出登录
+                  </button>
+                </div>
+              )}
+            </div>
+
+
+
+
+
+
+
+
           </div>
         </header>
         {notifications && (

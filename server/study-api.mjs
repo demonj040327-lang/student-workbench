@@ -9,7 +9,10 @@ import {fileURLToPath} from 'node:url';
 const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(here, '..');
-const pythonDefault = '/Users/jiangge/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3';
+const pythonDefault =
+  process.env.STUDY_PYTHON_BIN ||
+  process.env.ELM_CONFIG_PYTHON_BIN ||
+  'python3';
 const MAX_UPLOAD = 25 * 1024 * 1024;
 const MAX_BODY = Math.ceil(MAX_UPLOAD * 4 / 3) + 64 * 1024;
 const MAX_TEXT = 1500000;
