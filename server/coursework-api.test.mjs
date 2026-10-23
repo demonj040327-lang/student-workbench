@@ -44,8 +44,24 @@ test('valid short guidance is accepted across many slides without relaxing cover
   const payload={document:doc,allowExternal:true,credentialScope:'teacher'};
   const r=await generateGuidance(payload,{env});assert.equal(r.units.length,2);
   output={units:[{...unit,pages:[1,2,3,4,5,6]}]};assert.equal((await generateGuidance(payload,{env})).units.length,1);
-  output={units:[{...unit,pages:[1]}]};await assert.rejects(generateGuidance(payload,{env}),/未覆盖/);
+  output={units:[{...unit,pages:[1]}]};const partial=await generateGuidance(payload,{env});assert.deepEqual(partial.units[0].readingOnlyPages,[2,3,4,5,6]);assert(partial.units[0].overview.includes('未生成 AI 讲解'));assert.equal(partial.units[0].questions.length,1);
   output={units:Array.from({length:6},()=>({...unit,pages:[1,2,3,4,5,6]}))};await assert.rejects(generateGuidance(payload,{env}),/1–5/);
   output={units:[null]};await assert.rejects(generateGuidance(payload,{env}),/模块格式/);
+ }finally{globalThis.fetch=old;}
+});
+
+test('guidance diagnostics separate option, answer-index and PDF-page errors',async()=>{
+ const {generateGuidance}=await import('./study-api.mjs');
+ const doc={id:'question-fields-fixture',courseId:'fixture',name:'slides.pdf',pages:[{page:1,title:'Consent',text:'Participation is voluntary.'}]};
+ const q={prompt:'What is required?',options:['Consent','Payment','A grade','A deadline'],answer:0,explanation:'Consent is voluntary.',sourcePages:[1]};
+ const old=globalThis.fetch;let question=q;
+ try{
+  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({units:[{title:'Consent',overview:'Read consent.',points:['Consent is voluntary.'],readingSteps:['Read page one.'],pages:[1],questions:[question]}]})}}]}));
+  const payload={document:doc,allowExternal:true,credentialScope:'teacher'};
+  question={...q,answer:4};await assert.rejects(generateGuidance(payload,{env}),/0到3/);
+  question={...q,sourcePages:['1']};await assert.rejects(generateGuidance(payload,{env}),/整数页序/);
+  question={...q,sourcePages:[54]};await assert.rejects(generateGuidance(payload,{env}),/整数页序/);
+  question={...q,options:['A','B']};await assert.rejects(generateGuidance(payload,{env}),/四个/);
+  question=q;assert.equal((await generateGuidance(payload,{env})).units[0].questions[0].answer,0);
  }finally{globalThis.fetch=old;}
 });

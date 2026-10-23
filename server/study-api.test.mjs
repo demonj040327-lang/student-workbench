@@ -176,7 +176,7 @@ test('mock ELM validates citations and generated plan structure without any outb
     const plan = await parseDocument({...textPayload, mode: 'ai', allowExternal: true}, {env});
     assert.equal(plan.mode, 'ai'); assert.equal(plan.units[0].questions[0].options.length, 4);
     unit.questions[0].answer = 9;
-    await assert.rejects(parseDocument({...textPayload, mode: 'ai', allowExternal: true}, {env}), /题目/);
+    await assert.rejects(parseDocument({...textPayload, mode: 'ai', allowExternal: true}, {env}), /正确答案/);
   } finally { globalThis.fetch = fetchBefore; }
 });
 
