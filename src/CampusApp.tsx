@@ -1,5 +1,6 @@
 import CourseworkEditor from './CourseworkEditor';
 import CampusLearning from './CampusLearning';
+import StudentStudyModal from './StudentStudyModal';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LanguageSwitcher, useI18n } from './i18n';
 import {
@@ -102,6 +103,7 @@ export default function CampusApp() {
   }>({ aiConfigured: false });
   const [notifications, setNotifications] = useState(false);
   const channel = useRef<BroadcastChannel | null>(null);
+  const studyTrigger = useRef<HTMLButtonElement | null>(null);
   const assignments = studentAssignments(data, progress);
   const teachingCourses = data.courses.filter(
     (c) => (c.instructorId || 'local-teacher') === 'local-teacher',
@@ -120,6 +122,9 @@ export default function CampusApp() {
   const activeMaterial = visibleMaterials.find(
     (m) => m.id === materialId && m.courseId === currentCourse?.id,
   );
+  useEffect(() => {
+    if (materialId && !materialsLoading && !activeMaterial) setMaterialId('');
+  }, [materialId, materialsLoading, activeMaterial]);
   const selectedAssignment = (role === "teacher" ? teachingAssignments : assignments).find((a) => a.id === assignmentId);
   const dueSoon = assignments
     .filter((a) => a.due && dateDays(a.due) <= 7 && !progress.submitted?.[a.id])
@@ -706,18 +711,6 @@ export default function CampusApp() {
           )}
           {view === 'courses' && (
             <>
-              {activeMaterial && role === 'student' ? (
-                <CampusLearning
-                  key={activeMaterial.id}
-                  material={activeMaterial}
-                  progress={progress}
-                  onProgress={setProgress}
-                  api={api.student}
-                  onConnect={() => setDialog('api')}
-                  onBack={() => setMaterialId('')}
-                />
-              ) : (
-                <>
                   <header className="cp-page-heading cp-course-page-heading">
                     <div>
                       <span className="cp-eyebrow">
@@ -831,9 +824,9 @@ export default function CampusApp() {
                                 <button
                                   className="cp-card cp-student-material"
                                   key={m.id}
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    studyTrigger.current = event.currentTarget;
                                     setMaterialId(m.id);
-                                    window.scrollTo({ top: 0 });
                                   }}
                                 >
                                   <span className="cp-material-week">
@@ -913,8 +906,6 @@ export default function CampusApp() {
                       )}
                     </Empty>
                   )}
-                </>
-              )}
             </>
           )}
           {role === 'student' && view === 'week' && (
@@ -1034,6 +1025,19 @@ export default function CampusApp() {
           <Icon name="check" size={17} />
           {t(notice)}
         </div>
+      )}
+      {view === 'courses' && role === 'student' && activeMaterial && (
+        <StudentStudyModal
+          key={`${activeMaterial.id}:${activeMaterial.updatedAt}`}
+          material={activeMaterial}
+          progress={progress}
+          onProgress={setProgress}
+          api={api.student}
+          onConnect={() => setDialog('api')}
+          onClose={() => setMaterialId('')}
+          trigger={studyTrigger.current}
+          apiDialogOpen={dialog === 'api'}
+        />
       )}
       {dialog === 'api' && (
         <CampusDialog

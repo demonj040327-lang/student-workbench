@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(here, '..');
-const pythonDefault = '/Users/jiangge/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3';
+const pythonDefault = 'python3';
 const MAX_UPLOAD = 25 * 1024 * 1024;
 const MAX_BODY = Math.ceil(MAX_UPLOAD * 4 / 3) + 64 * 1024;
 const MAX_TEXT = 1500000;
@@ -147,7 +147,7 @@ export async function parseDocument(payload, options = {}) {
   try {
     let raw;
     try {
-      raw = await exec(env.STUDY_PYTHON_BIN || pythonDefault, [join(here, 'extract_document.py'), input.filePath, input.extension], {timeout: 45000, maxBuffer: 12 * 1024 * 1024, env: {...process.env, PYTHONIOENCODING: 'utf-8'}});
+      raw = await exec(env.STUDY_PYTHON_BIN || process.env.STUDY_PYTHON_BIN || pythonDefault, [join(here, 'extract_document.py'), input.filePath, input.extension], {timeout: 45000, maxBuffer: 12 * 1024 * 1024, env: {...process.env, PYTHONIOENCODING: 'utf-8'}});
     } catch (error) {
       if (error.stdout) {
         try { const output = JSON.parse(error.stdout); if (output.error) throw new StudyError(output.error); }

@@ -18,6 +18,7 @@ type Props = {
   api: PersonalApi | null;
   onConnect: () => void;
   onBack: () => void;
+  modal?: boolean;
 };
 export default function CampusLearning({
   material,
@@ -26,13 +27,15 @@ export default function CampusLearning({
   api,
   onConnect,
   onBack,
+  modal = false,
 }: Props) {
   const { t } = useI18n();
   const [tab, setTab] = useState<'guide' | 'practice' | 'ask' | 'source'>(
-    'guide',
+    modal ? 'source' : 'guide',
   );
   const [activeUnit, setActiveUnit] = useState(0);
-  const [sourcePage, setSourcePage] = useState(1);
+  const [sourcePage, setSourcePage] = useState(material.document.pages[0]?.page ?? 1);
+  const [pageError, setPageError] = useState('');
   const [question, setQuestion] = useState('');
   const [searchOnly, setSearchOnly] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,11 +44,14 @@ export default function CampusLearning({
     { question: string; result: StudyAnswer }[]
   >([]);
   const abort = useRef<AbortController | null>(null);
+  const requestInFlight = useRef(false);
   const [fileUrl, setFileUrl] = useState('');
   const units = material.document.units;
   const unit = units[activeUnit] || units[0];
   const completed = units.filter((u) => progress.units[u.id]).length;
   const questions = units.flatMap((u) => u.questions);
+  const pages = material.document.pages;
+  const currentPageIndex = pages.findIndex((p) => p.page === sourcePage);
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => {
     if (!material.blob) return;
@@ -53,22 +59,26 @@ export default function CampusLearning({
     setFileUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [material.blob]);
-  const page =
-    material.document.pages.find((p) => p.page === sourcePage) ||
-    material.document.pages[0];
-  function openSource(page: number) {
-    setSourcePage(page);
+  const page = pages[currentPageIndex];
+  function openSource(pageNumber: number) {
+    if (!pages.some((item) => item.page === pageNumber)) {
+      setPageError(t('未找到对应原文页。'));
+      return;
+    }
+    setPageError('');
+    setSourcePage(pageNumber);
     setTab('source');
   }
   async function ask(event: React.FormEvent) {
     event.preventDefault();
-    if (!question.trim() || busy) return;
+    if (!question.trim() || requestInFlight.current) return;
     if (!searchOnly && !api) {
       onConnect();
       return;
     }
     const controller = new AbortController();
     abort.current = controller;
+    requestInFlight.current = true;
     setBusy(true);
     setError('');
     const text = question.trim();
@@ -79,7 +89,7 @@ export default function CampusLearning({
           document: material.document,
           question: text,
           mode: searchOnly ? 'local' : 'ai',
-          allowExternal: true,
+          allowExternal: !searchOnly,
           credentialScope: 'student',
           ...(!searchOnly ? { personalApi: api } : {}),
         },
@@ -92,13 +102,15 @@ export default function CampusLearning({
     } catch (e) {
       if (!controller.signal.aborted) setError(errorMessage(e));
     } finally {
+      requestInFlight.current = false;
+      if (abort.current === controller) abort.current = null;
       if (!controller.signal.aborted) setBusy(false);
     }
   }
   return (
-    <section className="cp-learning">
-      <button className="cp-back" onClick={onBack}>
-        ← {t('返回课程资料')}
+    <section className={`cp-learning ${modal ? 'student-study-learning' : ''}`}>
+      <button className="cp-back" onClick={onBack} autoFocus={modal}>
+        {modal ? t('关闭') : `← ${t('返回课程资料')}`}
       </button>
       <header className="cp-page-heading">
         <div>
@@ -130,10 +142,10 @@ export default function CampusLearning({
       <nav className="cp-tabs" aria-label={t('课件学习导航')}>
         {(
           [
+            ...(modal ? [['source', '原文资料', 'file']] as const : []),
             ['guide', '分步指导', 'layers'],
             ['practice', '课后练习', 'check'],
-            ['ask', '课件问答', 'message'],
-            ['source', '原文资料', 'file'],
+            ...(!modal ? [['ask', '课件问答', 'message'], ['source', '原文资料', 'file']] as const : []),
           ] as const
         ).map(([key, label, icon]) => (
           <button
@@ -148,6 +160,7 @@ export default function CampusLearning({
           </button>
         ))}
       </nav>
+      <div className={modal ? 'student-study-layout' : 'cp-learning-body'}>
       {tab === 'guide' &&
         (unit ? (
           <div className="cp-guide-layout">
@@ -352,7 +365,7 @@ export default function CampusLearning({
           })}
         </div>
       )}
-      {tab === 'ask' && (
+      {(tab === 'ask' || modal) && (
         <div className="cp-ask-layout">
           <section className="cp-card cp-chat">
             <header>
@@ -364,6 +377,11 @@ export default function CampusLearning({
               <span className={`cp-status ${api ? 'connected' : ''}`}>
                 {t(api ? '个人 API 已设置' : '个人 API 未设置')}
               </span>
+              {modal && (
+                <button className="cp-link student-study-connect" onClick={onConnect}>
+                  {t('管理个人 API')}
+                </button>
+              )}
             </header>
             <div className="cp-chat-history" aria-live="polite">
               {!history.length && (
@@ -494,13 +512,31 @@ export default function CampusLearning({
               </a>
             )}
           </header>
+          <div className="student-study-page-controls" aria-label={t('原文页码')}>
+            <button
+              className="cp-button"
+              disabled={currentPageIndex <= 0}
+              onClick={() => openSource(pages[currentPageIndex - 1].page)}
+            >
+              {t('上一页')}
+            </button>
+            <span>{t('第 {current} / {count} 页', { current: page?.page ?? 0, count: pages.length })}</span>
+            <button
+              className="cp-button"
+              disabled={currentPageIndex < 0 || currentPageIndex >= pages.length - 1}
+              onClick={() => openSource(pages[currentPageIndex + 1].page)}
+            >
+              {t('下一页')}
+            </button>
+          </div>
+          {pageError && <Alert>{pageError}</Alert>}
           <div className="cp-original-layout">
             <nav aria-label={t('原文页码')}>
-              {material.document.pages.map((p) => (
+              {pages.map((p) => (
                 <button
                   key={p.page}
                   className={sourcePage === p.page ? 'active' : ''}
-                  onClick={() => setSourcePage(p.page)}
+                  onClick={() => openSource(p.page)}
                 >
                   <span>{String(p.page).padStart(2, '0')}</span>
                   {p.title || t('第 {page} 页', { page: p.page })}
@@ -508,19 +544,32 @@ export default function CampusLearning({
               ))}
             </nav>
             <article>
-              <span className="cp-eyebrow">
-                {t('第 {page} 页', { page: page?.page || 1 })}
-              </span>
-              <h2>{page?.title}</h2>
-              <div className="cp-source-text">
-                {page?.text ||
-                  t('这一页没有可提取的文字，请下载原件查看图示。')}
-              </div>
               {fileUrl && material.name.toLowerCase().endsWith('.pdf') && (
                 <iframe
+                  key={`${material.id}:${page?.page ?? 1}`}
                   src={`${fileUrl}#page=${page?.page || 1}`}
                   title={t('课件 PDF 预览')}
                 />
+              )}
+              {!(fileUrl && material.name.toLowerCase().endsWith('.pdf')) && (
+                <p className="student-study-format-note">
+                  {t('当前为解析文字预览；图表、排版或动画请下载原文件核对。')}
+                </p>
+              )}
+              {page ? (
+                <>
+                  <span className="cp-eyebrow">
+                    {t('第 {page} 页', { page: page.page })}
+                  </span>
+                  <h2>{page.title}</h2>
+                  <div className="cp-source-text">
+                    {page.text || t('这一页没有可提取的文字，请下载原件查看图示。')}
+                  </div>
+                </>
+              ) : (
+                <p className="student-study-format-note">
+                  {t('这份课件没有可提取的文字。若为扫描件，请下载原件查看。')}
+                </p>
               )}
             </article>
           </div>
@@ -534,6 +583,7 @@ export default function CampusLearning({
           )}
         </section>
       )}
+      </div>
     </section>
   );
 }
