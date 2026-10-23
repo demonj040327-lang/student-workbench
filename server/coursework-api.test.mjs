@@ -58,10 +58,20 @@ test('guidance diagnostics separate option, answer-index and PDF-page errors',as
  try{
   globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({units:[{title:'Consent',overview:'Read consent.',points:['Consent is voluntary.'],readingSteps:['Read page one.'],pages:[1],questions:[question]}]})}}]}));
   const payload={document:doc,allowExternal:true,credentialScope:'teacher'};
-  question={...q,answer:4};await assert.rejects(generateGuidance(payload,{env}),/0到3/);
-  question={...q,sourcePages:['1']};await assert.rejects(generateGuidance(payload,{env}),/整数页序/);
-  question={...q,sourcePages:[54]};await assert.rejects(generateGuidance(payload,{env}),/整数页序/);
-  question={...q,options:['A','B']};await assert.rejects(generateGuidance(payload,{env}),/四个/);
+  question={...q,answer:4};assert.equal((await generateGuidance(payload,{env})).units[0].questions.length,0);
+  question={...q,sourcePages:['1']};assert.equal((await generateGuidance(payload,{env})).units[0].questions[0].sourcePages[0],1);
+  question={...q,sourcePages:[54]};assert.equal((await generateGuidance(payload,{env})).units[0].questions.length,0);
+  question={...q,options:['A','B']};assert.equal((await generateGuidance(payload,{env})).units[0].questions.length,0);
   question=q;assert.equal((await generateGuidance(payload,{env})).units[0].questions[0].answer,0);
  }finally{globalThis.fetch=old;}
+});
+
+
+test('option formats are normalised without inventing missing answers',async()=>{
+ const {normalizeStudyQuestion}=await import('./study-api.mjs');
+ assert.deepEqual(normalizeStudyQuestion({options:{A:'one',B:'two',C:'three',D:'four'},answer:'C',sourcePages:['2']}).options,['one','two','three','four']);
+ assert.equal(normalizeStudyQuestion({answer:'C'}).answer,2);
+ assert.deepEqual(normalizeStudyQuestion({options:[{label:'A',text:'one'},{label:'B',text:'two'},{label:'C',text:'three'},{label:'D',text:'four'}]}).options,['one','two','three','four']);
+ assert.deepEqual(normalizeStudyQuestion({options:['one','two']}).options,['one','two']);
+ assert.equal(normalizeStudyQuestion({answer:4}).answer,4);
 });
