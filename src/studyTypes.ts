@@ -39,6 +39,7 @@ export type StudyUnit = {
   questions: StudyQuestion[];
 };
 export type StudyDocument = {
+  originalUrl?: string;
   id: string;
   courseId: string;
   name: string;

@@ -1,6 +1,11 @@
 import CourseworkEditor from './CourseworkEditor';
+import {importLocalDemoLibrary,mergeLocalDemoLibrary} from './localDemoLibrary';
+import {StudentFeedback,CourseDiscussion} from './CampusCommunity';
+import {recordActivity,useCommunity} from './communityStore';
+import {useGenerationJobs,isJobActive,retryGeneration,dismissGeneration} from './teacherGenerationQueue';
+import StudentCourseworkAnalysis from './StudentCourseworkAnalysis';
 
-import { fetchDatabaseCourses } from './campusApi';
+
 import CampusLearning from './CampusLearning';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LanguageSwitcher, useI18n } from './i18n';
@@ -16,6 +21,7 @@ import { SemesterSettings } from './SemesterControls';
 import { studyRequest, errorMessage, uid } from './studyClient';
 import {
   createCampusData,
+  emptyProgress,
   loadCampusData,
   loadCampusProgress,
   readCampusMaterials,
@@ -36,17 +42,19 @@ import CampusTeacher from './CampusTeacher';
 import Icon from './CampusIcons';
 import { Alert, CampusDialog, Empty, Meter } from './CampusUI';
 
-type View = 'overview' | 'courses' | 'week' | 'assignments';
+type View = 'overview' | 'courses' | 'week' | 'assignments' | 'discussion';
 const menu: Record<CampusRole, [View, string, string][]> = {
   student: [
     ['overview', '学期总览', 'home'],
     ['courses', '我的课程', 'book'],
     ['week', '每周任务', 'calendar'],
+    ['discussion', '课程讨论', 'message'],
   ],
   teacher: [
     ['overview', '教学总览', 'home'],
     ['courses', '课程与课件', 'book'],
-    ['assignments', '课程作业', 'calendar'],
+    ['assignments', '学生反馈', 'eye'],
+    ['discussion', '课程讨论', 'message'],
   ],
 };
 function initialRole(): CampusRole {
@@ -75,11 +83,13 @@ export default function CampusApp({
   const [demo] = useState(
     () => new URLSearchParams(location.search).get('demo') === '1',
   );
+  const jobs=useGenerationJobs();
+  const community=useCommunity(demo);
+  const [discussionOnlyOpen,setDiscussionOnlyOpen]=useState(false);
+  const [taskPreview,setTaskPreview]=useState<CampusMaterial|null>(null);
+  const [taskPreviewProgress,setTaskPreviewProgress]=useState(emptyProgress);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [data, setData] = useState(() => loadCampusData(demo));
-  const [databaseCourses, setDatabaseCourses] = useState<CampusCourse[]>([]);
-  const [databaseLoading, setDatabaseLoading] = useState(false);
-  const [databaseError, setDatabaseError] = useState('');
   const [progress, setProgress] = useState(() => loadCampusProgress(demo));
   const [materials, setMaterials] = useState<CampusMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
@@ -94,6 +104,9 @@ export default function CampusApp({
   const [editCoursework, setEditCoursework] = useState<
     Assignment | undefined
   >();
+  const [editingCourse, setEditingCourse] = useState<CampusCourse | undefined>();
+  const [deletingCourse, setDeletingCourse] = useState<CampusCourse | null>(null);
+  const [regenerateCoursework, setRegenerateCoursework] = useState(false);
   const [assignmentQuestion, setAssignmentQuestion] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -101,6 +114,14 @@ export default function CampusApp({
     return () => clearInterval(timer);
   }, []);
   const [notice, setNotice] = useState('');
+  const notifiedJobs=useRef(new Set<string>());
+  useEffect(()=>{
+    if(role!=='teacher')return;
+    for(const job of jobs.filter(j=>j.demo===demo&&(j.state==='done'||j.state==='failed'))){
+      const key=job.id+':'+job.state;if(notifiedJobs.current.has(key))continue;
+      notifiedJobs.current.add(key);setNotice(job.state==='done'?'课件生成完成，可在后台任务中查看。':'生成失败，请在任务列表中重试。');
+    }
+  },[jobs,role,demo]);
   const [error, setError] = useState('');
   const [api, setApi] = useState<Record<CampusRole, PersonalApi | null>>({
     student: null,
@@ -120,6 +141,7 @@ export default function CampusApp({
   const teachingAssignments = data.assignments.filter((a) =>
     teachingCourses.some((c) => c.id === a.courseId),
   );
+  const unanswered=community.discussions.filter(q=>!q.replies.length&&teachingCourses.some(c=>c.id===q.courseId));
   const currentCourse =
     viewCourses.find((c) => c.id === courseId) || viewCourses[0];
   const visibleMaterials = materials.filter((m) =>
@@ -130,6 +152,11 @@ export default function CampusApp({
   const activeMaterial = visibleMaterials.find(
     (m) => m.id === materialId && m.courseId === currentCourse?.id,
   );
+  useEffect(() => {
+    if(role !== 'student' || !activeMaterial || view !== 'courses') return;
+    try { recordActivity(demo, activeMaterial, progress); }
+    catch {setError(t('学习记录未能保存，请检查浏览器存储。'));}
+  }, [role, activeMaterial, progress, demo, view]);
   const selectedAssignment = (role === "teacher" ? teachingAssignments : assignments).find((a) => a.id === assignmentId);
   const dueSoon = assignments
     .filter((a) => a.due && dateDays(a.due) <= 7 && !progress.submitted?.[a.id])
@@ -141,22 +168,18 @@ export default function CampusApp({
   const materialCounts = (id: string) =>
     visibleMaterials.filter((m) => m.courseId === id);
 
+  useEffect(() => {
+    if(!demo)return;
+    let live=true;
+    importLocalDemoLibrary().then(async bundle => {
+      if(!live||!bundle)return;
+      setData(d=>mergeLocalDemoLibrary(d,bundle));
+      const items=await readCampusMaterials(true);if(live)setMaterials(items);
+    }).catch(e=>{if(live)setError(errorMessage(e));});
+    return()=>{live=false;};
+  },[demo]);
   // 读取 SQLite 数据库中的课程，仅用于预览
-  async function loadDatabasePreview() {
-    setDatabaseLoading(true);
-    setDatabaseError('');
 
-    try {
-      const courses = await fetchDatabaseCourses();
-      setDatabaseCourses(courses);
-    } catch (error) {
-      setDatabaseError(
-        error instanceof Error ? error.message : '读取数据库失败'
-      );
-    } finally {
-      setDatabaseLoading(false);
-    }
-  }
 
 
 
@@ -195,6 +218,7 @@ export default function CampusApp({
       typeof BroadcastChannel !== 'undefined'
         ? new BroadcastChannel(`workbench-campus-${demo ? 'demo' : 'personal'}`)
         : null;
+    window.addEventListener('workbench-materials-updated',reload);
     channel.current = bc;
     if (bc) bc.onmessage = () => void reload();
     function sync(e: StorageEvent) {
@@ -208,6 +232,7 @@ export default function CampusApp({
     addEventListener('storage', sync);
     return () => {
       live = false;
+      window.removeEventListener('workbench-materials-updated',reload);
       bc?.close();
       channel.current = null;
       removeEventListener('storage', sync);
@@ -292,11 +317,7 @@ export default function CampusApp({
             navigate('overview');
           }}
         >
-          <span className="cp-brand-symbol">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img className="cp-brand-image" src="/workbench-logo.svg" alt="" width="30" height="30"/>
           workbench<span className="cp-brand-dot">.</span>
         </a>
         <span className="cp-workspace-label">
@@ -313,6 +334,7 @@ export default function CampusApp({
               <Icon name={icon} size={19} />
               <span>{t(label)}</span>
               {key === 'courses' && <small>{viewCourses.length}</small>}
+              {key === 'discussion' && role === 'teacher' && unanswered.length>0 && <small className="cp-unanswered-count" aria-label={t('{count} 个待回复问题',{count:unanswered.length})}>{unanswered.length}</small>}
             </button>
           ))}
         </nav>
@@ -321,7 +343,7 @@ export default function CampusApp({
             <span>{t(role === 'student' ? '我的课程' : '教学课程')}</span>
             {role === 'teacher' && (
               <button
-                onClick={() => setDialog('course')}
+                onClick={() => { setEditingCourse(undefined); setDialog('course'); }}
                 className="cp-icon-button"
                 aria-label={t('创建课程')}
               >
@@ -408,7 +430,7 @@ export default function CampusApp({
                     fontSize: 12,
                   }}
                 >
-                  退出登录 ↗
+                  {t('退出登录')} ↗
                 </button>
               )}
             </div>
@@ -426,7 +448,7 @@ export default function CampusApp({
       <div className="cp-workspace">
         <header className="cp-topbar">
           <div className="cp-breadcrumb">
-            <span>workbench</span>
+            <span className="cp-mobile-wordmark"><img src="/workbench-logo.svg" alt="" width="22" height="22"/>workbench.</span>
             <Icon name="chevron" size={12} />
             <strong>
               {t(menu[role].find(([key]) => key === view)?.[1] || '')}
@@ -470,7 +492,7 @@ export default function CampusApp({
                 type="button"
                 className="cp-top-avatar cp-avatar-button"
                 onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                aria-label="打开账号菜单"
+                aria-label={t('打开账号菜单')}
                 aria-expanded={accountMenuOpen}
                 aria-haspopup="menu"
               >
@@ -481,10 +503,10 @@ export default function CampusApp({
                 <div className="cp-account-menu">
                   <div className="cp-account-info">
                     <strong>
-                      {role === 'student' ? '演示学生' : '演示教师'}
+                      {t(role === 'student' ? '演示学生' : '演示教师')}
                     </strong>
                     <small>
-                      当前身份：{role === 'student' ? '学生' : '教师'}
+                      {t('当前身份')}：{t(role === 'student' ? '学生' : '教师')}
                     </small>
                   </div>
 
@@ -498,7 +520,7 @@ export default function CampusApp({
                       onLogout?.();
                     }}
                   >
-                    退出登录
+                    {t('退出登录')}
                   </button>
                 </div>
               )}
@@ -571,6 +593,19 @@ export default function CampusApp({
           </div>
         )}
         <main id="campus-main" tabIndex={-1} className="cp-main">
+          {role === 'teacher' && jobs.some(j=>j.demo===demo) && <section className="cp-card cp-generation-panel" aria-label={t('后台生成任务')}>
+            <h2>{t('后台生成任务')} <small>{jobs.filter(j=>j.demo===demo&&isJobActive(j)).length} {t('项处理中')}</small></h2>
+            <p>{t('可以继续上传或切换页面；关闭或刷新应用会中断尚未完成的任务。')}</p>
+            {jobs.filter(j=>j.demo===demo).map(job=><div className="cp-generation-row" key={job.id}>
+              <span><strong>{job.title}</strong><small>{data.courses.find(c=>c.id===job.courseId)?.code} · {t(job.action==='guide'?'AI 生成草稿':'AI 生成题目')}</small></span>
+              <span role="status">{t(({queued:'等待生成',parsing:'解析文件中',generating:'AI 生成中',done:'生成完成',failed:'生成失败'})[job.state])}</span>
+              {job.error&&<small role="alert">{job.error}</small>}
+              {job.state==='done'&&job.result&&<button className="cp-button" onClick={()=>{setTaskPreview(job.result!);setTaskPreviewProgress(emptyProgress());}}>{t('查看结果')}</button>}
+              {job.state==='failed'&&<button className="cp-button" onClick={()=>retryGeneration(job.id)}>{t('重试')}</button>}
+              {!isJobActive(job)&&<button className="cp-link" aria-label={t('移除任务提示')} onClick={()=>dismissGeneration(job.id)}>×</button>}
+            </div>)}
+          </section>}
+
           {demo && (
             <div className="cp-demo-strip">
               <span>
@@ -680,52 +715,14 @@ export default function CampusApp({
 
                 <button
                   className="cp-button primary"
-                  onClick={() => setDialog('course')}
+                  onClick={() => { setEditingCourse(undefined); setDialog('course'); }}
                 >
                   <Icon name="plus" size={17} />
                   {t('创建课程')}
                 </button>
 
-                {role === 'teacher' && (
-                  <button
-                    type="button"
-                    className="cp-button"
-                    onClick={() => void loadDatabasePreview()}
-                    disabled={databaseLoading}
-                  >
-                    {databaseLoading ? '读取中...' : '查看 SQLite 课程'}
-                  </button>
-                )}
               </header>
-
-
-              {role === 'teacher' && (
-                <section className="cp-db-preview">
-                  <h3>SQLite 数据库课程预览</h3>
-                  <p>仅用于测试数据库连接，不会修改现有课程。</p>
-
-                  {databaseError && (
-                    <p role="alert">{databaseError}</p>
-                  )}
-
-                  {databaseCourses.map((course) => (
-                    <div key={course.id}>
-                      <strong>{course.name}</strong>
-                      {' · '}
-                      {course.code}
-                      {' · '}
-                      {course.teacher || '未设置教师'}
-                    </div>
-                  ))}
-
-                  {!databaseLoading &&
-                    databaseCourses.length === 0 &&
-                    !databaseError && (
-                      <p>点击上方按钮读取 SQLite 课程。</p>
-                    )}
-                </section>
-              )}
-
+              {unanswered.length>0 && <section className="cp-card cp-unanswered-reminder"><div><h2>{t('{count} 个待回复问题',{count:unanswered.length})}</h2><p>{teachingCourses.filter(c=>unanswered.some(q=>q.courseId===c.id)).map(c=>`${c.code} · ${unanswered.filter(q=>q.courseId===c.id).length}`).join(' / ')}</p></div><button className="cp-button primary" onClick={()=>{setDiscussionOnlyOpen(true);navigate('discussion');}}>{t('前往答疑')}</button></section>}
               <div className="cp-teacher-stats">
 
                 {[
@@ -760,50 +757,6 @@ export default function CampusApp({
                   </div>
                 ))}
               </div>
-              <div className="cp-teacher-intro cp-card">
-                <div>
-                  <span className="cp-eyebrow">PREPARE. REVIEW. PUBLISH.</span>
-                  <h2>{t('一次发布，全班都能开始。')}</h2>
-                  <p>
-                    {t(
-                      '上传课件，让模型起草分步指导与练习。由你检查内容，决定何时发布。',
-                    )}
-                  </p>
-                  <button
-                    className="cp-button primary"
-                    onClick={() =>
-                      viewCourses.length
-                        ? navigate('courses')
-                        : setDialog('course')
-                    }
-                  >
-                    {t('准备课程内容')}
-                    <Icon name="arrow" size={16} />
-                  </button>
-                </div>
-                <div className="cp-teaching-illustration" aria-hidden="true">
-                  <div>
-                    <Icon name="file" size={23} />
-                    <span>LECTURE</span>
-                    <i />
-                    <i />
-                  </div>
-                  <Icon name="arrow" size={22} />
-                  <div>
-                    <Icon name="layers" size={23} />
-                    <span>MODULES</span>
-                    <i />
-                    <i />
-                  </div>
-                  <Icon name="arrow" size={22} />
-                  <div>
-                    <Icon name="check" size={23} />
-                    <span>PUBLISH</span>
-                    <i />
-                    <i />
-                  </div>
-                </div>
-              </div>
               <CourseCards
                 courses={viewCourses}
                 materials={materials}
@@ -825,7 +778,7 @@ export default function CampusApp({
                         <strong>{t(m.title)}</strong>
                         <small>
                           {data.courses.find((c) => c.id === m.courseId)?.code}{' '}
-                          · {t('第 {week} 周', { week: m.week })}
+                          · {m.weekUnconfirmed ? t('周次待确认') : t('第 {week} 周', { week: m.week })}
                         </small>
                       </div>
                       <span
@@ -878,7 +831,7 @@ export default function CampusApp({
                     {role === 'teacher' && (
                       <button
                         className="cp-button"
-                        onClick={() => setDialog('course')}
+                        onClick={() => { setEditingCourse(undefined); setDialog('course'); }}
                       >
                         <Icon name="plus" size={16} />
                         {t('创建课程')}
@@ -905,10 +858,13 @@ export default function CampusApp({
                   {currentCourse ? (
                     role === 'teacher' ? (
                       <CampusTeacher
-                        onCoursework={() => {
-                          setEditCoursework(undefined);
-                          setDialog('assignment');
-                        }}
+                        demo={demo}
+                        onEditCourse={() => { setEditingCourse(currentCourse); setDialog('course'); }}
+                        onDeleteCourse={() => setDeletingCourse(currentCourse)}
+                        coursework={<CourseworkEditor courses={[currentCourse]} api={api.teacher} hostConfigured={status.aiConfigured} onConnect={() => setDialog('api')} onSave={(assignment) => { setData(d => ({...d, assignments: [...d.assignments.filter(a => a.id !== assignment.id), assignment]})); setNotice(assignment.coursework?.status === 'draft' ? '草稿已保存，学生暂不可见。' : '作业已发布，已加入学生的时间轴与提醒。'); }} />}
+                        assignments={data.assignments.filter(a => a.courseId === currentCourse.id)}
+                        onEditAssignment={(a, regenerate = false) => {setEditCoursework(a); setRegenerateCoursework(regenerate); setDialog('assignment');}}
+                        onSaveAssignment={(assignment) => {setData(d => ({...d, assignments:d.assignments.map(a => a.id === assignment.id ? assignment : a)}));setNotice('作业已撤回，学生暂不可见。');}}
                         key={currentCourse.id}
                         course={currentCourse}
                         materials={materialCounts(currentCourse.id)}
@@ -976,7 +932,7 @@ export default function CampusApp({
                                   }}
                                 >
                                   <span className="cp-material-week">
-                                    {t('第 {week} 周', { week: m.week })}
+                                    {m.weekUnconfirmed ? t('周次待确认') : t('第 {week} 周', { week: m.week })}
                                     <Icon name="file" size={25} />
                                   </span>
                                   <div>
@@ -1045,7 +1001,7 @@ export default function CampusApp({
                       {role === 'teacher' && (
                         <button
                           className="cp-button primary"
-                          onClick={() => setDialog('course')}
+                          onClick={() => { setEditingCourse(undefined); setDialog('course'); }}
                         >
                           {t('创建课程')}
                         </button>
@@ -1076,77 +1032,9 @@ export default function CampusApp({
               />
             </>
           )}
-          {role === 'teacher' && view === 'assignments' && (
-            <>
-              <header className="cp-page-heading">
-                <div>
-                  <span className="cp-eyebrow">COURSEWORK</span>
-                  <h1>{t('课程作业')}</h1>
-                  <p>{t('发布作业要求与截止日期，学生独立记录完成进度。')}</p>
-                </div>
-                <button
-                  className="cp-button primary"
-                  onClick={() => {
-                    setEditCoursework(undefined);
-                    setDialog('assignment');
-                  }}
-                  disabled={!viewCourses.length}
-                >
-                  <Icon name="plus" size={17} />
-                  {t('发布作业')}
-                </button>
-              </header>
-              <div className="cp-card cp-assignment-list">
-                {teachingAssignments.map((a) => (
-                  <article key={a.id}>
-                    <span
-                      className="cp-course-chip"
-                      style={{
-                        color: data.courses.find((c) => c.id === a.courseId)
-                          ?.color,
-                      }}
-                    >
-                      {data.courses.find((c) => c.id === a.courseId)?.code}
-                    </span>
-                    <div>
-                      <h3>{t(a.title)}</h3>
-                      <p>
-                        {a.startsOn} → {a.due || t('截止时间待确认')} ·{' '}
-                        {t('{count} 个步骤', { count: a.steps.length })}
-                      </p>
-                    </div>
-                    <button
-                      className="cp-button"
-                      onClick={() => setAssignmentId(a.id)}
-                    >
-                      {t('查看要求')}
-                      <Icon name="chevron" size={15} />
-                    </button>
-                    <button
-                      className="cp-button"
-                      onClick={() => {
-                        setEditCoursework(a);
-                        setDialog('assignment');
-                      }}
-                    >
-                      {t('检查与编辑')}
-                    </button>
-                    <span className="cp-status">
-                      {a.coursework?.status === 'draft'
-                        ? t('草稿')
-                        : a.coursework &&
-                            Date.parse(a.coursework.releaseAt) > Date.now()
-                          ? 'Scheduled / 定时发布'
-                          : t('已发布')}
-                    </span>
-                  </article>
-                ))}
-                {!teachingAssignments.length && (
-                  <Empty title={t('还没有课程作业')} />
-                )}
-              </div>
-            </>
-          )}
+          {role === 'teacher' && view === 'assignments' && <StudentFeedback courses={viewCourses} materials={visibleMaterials} demo={demo}/>}
+          {view === 'discussion' && <CourseDiscussion key={discussionOnlyOpen?'unanswered':'all'} initialFilter={discussionOnlyOpen?'open':'all'} courses={viewCourses} role={role} demo={demo}/>}
+
           <footer className="cp-footer">
             <span>workbench · TeachAthon 2026</span>
             <span>
@@ -1174,6 +1062,7 @@ export default function CampusApp({
           {t(notice)}
         </div>
       )}
+      {taskPreview&&<CampusDialog title={t('学生视角预览')} wide onClose={()=>setTaskPreview(null)}><p className="cp-info">{t('预览中的答题与进度不会写入学生记录；AI 问答不使用学生额度。')}</p><CampusLearning material={taskPreview} progress={taskPreviewProgress} onProgress={setTaskPreviewProgress} api={null} onConnect={()=>setNotice('预览仅展示问答入口，实际问答由学生使用自己的 API。')} onBack={()=>setTaskPreview(null)}/></CampusDialog>}
       {dialog === 'api' && (
         <CampusDialog
           title={t(role === 'student' ? '连接我的 ELM API' : '教学 ELM API')}
@@ -1195,22 +1084,34 @@ export default function CampusApp({
         </CampusDialog>
       )}
       {dialog === 'course' && (
-        <CampusDialog title={t('创建课程')} onClose={() => setDialog(null)}>
+        <CampusDialog title={t(editingCourse ? '修改课程' : '创建课程')} onClose={() => setDialog(null)}>
           <NewCourse
+            initial={editingCourse}
             onSave={(course) => {
-              setData((d) => ({ ...d, courses: [...d.courses, course] }));
+              setData((d) => ({ ...d, courses: editingCourse ? d.courses.map(c => c.id === course.id ? course : c) : [...d.courses, course] }));
               setCourseId(course.id);
               navigate('courses');
-              setNotice('课程已创建，可以上传课件。');
+              setDialog(null);
+              setNotice(editingCourse ? '课程已修改。' : '课程已创建，可以上传课件。');
             }}
           />
         </CampusDialog>
       )}
+      {deletingCourse && <CampusDialog title={t('删除课程')} onClose={() => setDeletingCourse(null)}>
+        <p>{t('删除后，课程及其作业将从工作区移除。已上传文件保留在本机存储中，不会自动清除。')}</p>
+        <strong>{t(deletingCourse.name)}</strong>
+        <div className="cp-form-actions"><button className="cp-button" onClick={() => setDeletingCourse(null)}>{t('取消')}</button><button className="cp-button" onClick={() => {
+          setData(d => ({...d, courses:d.courses.filter(c => c.id !== deletingCourse.id), assignments:d.assignments.filter(a => a.courseId !== deletingCourse.id)}));
+          setDeletingCourse(null); setCourseId(''); setMaterialId(''); setNotice('课程已删除。');
+        }}>{t('确认删除')}</button></div>
+      </CampusDialog>}
       {dialog === 'assignment' && (
-        <CampusDialog title={t('发布作业')} onClose={() => setDialog(null)}>
+        <CampusDialog title={t('发布作业')} onClose={() => {setRegenerateCoursework(false);setDialog(null);}}>
           <CourseworkEditor
             courses={viewCourses}
+            key={editCoursework?.id || 'new'}
             initial={editCoursework}
+            autoGenerate={regenerateCoursework}
             api={api.teacher}
             hostConfigured={status.aiConfigured}
             onConnect={() => setDialog('api')}
@@ -1341,6 +1242,7 @@ export default function CampusApp({
               {t('截止日期')} · {selectedAssignment.due}
             </p>
             <p className="cp-muted">{t(selectedAssignment.brief)}</p>
+            {role === 'student' && selectedAssignment.coursework?.document && <StudentCourseworkAnalysis key={selectedAssignment.coursework.document.id} document={selectedAssignment.coursework.document} api={api.student} onConnect={() => {setAssignmentId('');setDialog('api');}} />}
             {role === 'student' && (
               <div className="cp-assignment-completion">
                 <Meter
@@ -1435,7 +1337,7 @@ function CourseCards({
             </div>
             <div className="cp-course-card-copy">
               <h3>{t(c.name)}</h3>
-              <p>{c.teacher}</p>
+              <p>{t(c.teacher)}</p>
               <footer>
                 <span>
                   <Icon name="file" size={14} />
@@ -1679,7 +1581,7 @@ function ApiSettings({
     </form>
   );
 }
-function NewCourse({ onSave }: { onSave: (course: CampusCourse) => void }) {
+function NewCourse({ onSave, initial }: { onSave: (course: CampusCourse) => void; initial?: CampusCourse }) {
   const { t } = useI18n();
   const [error, setError] = useState('');
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -1692,7 +1594,8 @@ function NewCourse({ onSave }: { onSave: (course: CampusCourse) => void }) {
       return;
     }
     onSave({
-      id: uid(),
+      ...initial,
+      id: initial?.id || uid(),
       name: String(d.get('name')).trim(),
       code: String(d.get('code')).trim(),
       teacher: String(d.get('teacher')).trim(),
@@ -1706,25 +1609,25 @@ function NewCourse({ onSave }: { onSave: (course: CampusCourse) => void }) {
     <form className="cp-form" onSubmit={submit}>
       <label>
         {t('课程名称')}
-        <input name="name" required maxLength={80} />
+        <input name="name" defaultValue={initial?.name} required maxLength={80} />
       </label>
       <div className="cp-form-row">
         <label>
           {t('课程简称')}
-          <input name="code" required maxLength={12} />
+          <input name="code" defaultValue={initial?.code} required maxLength={12} />
         </label>
         <label>
           {t('授课教师')}
-          <input name="teacher" required maxLength={80} />
+          <input name="teacher" defaultValue={initial?.teacher} required maxLength={80} />
         </label>
       </div>
       <label>
         {t('课程简介')}
-        <textarea name="description" maxLength={300} rows={2} />
+        <textarea name="description" defaultValue={initial?.description} maxLength={300} rows={2} />
       </label>
       <label>
         {t('课程颜色')}
-        <select name="color">
+        <select name="color" defaultValue={initial?.color}>
           <option value="#6f8264">{t('鼠尾草绿')}</option>
           <option value="#64899b">{t('雾蓝')}</option>
           <option value="#b08962">{t('砂棕')}</option>
@@ -1732,7 +1635,7 @@ function NewCourse({ onSave }: { onSave: (course: CampusCourse) => void }) {
         </select>
       </label>
       {error && <Alert>{t(error)}</Alert>}
-      <button className="cp-button primary">{t('创建课程')}</button>
+      <button className="cp-button primary">{t(initial ? '保存修改' : '创建课程')}</button>
     </form>
   );
 }

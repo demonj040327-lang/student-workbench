@@ -15,6 +15,8 @@ export type CampusCourse = Course & {
   instructorId?: string;
 };
 export type CampusMaterial = {
+  weekUnconfirmed?: boolean;
+  kind?: 'lecture' | 'tutorial' | 'reference' | 'template';
   id: string;
   courseId: string;
   title: string;
@@ -570,4 +572,9 @@ export async function writeCampusMaterial(
     tx.onerror = () => reject(new Error('课件未保存，请检查浏览器存储空间。'));
     tx.onabort = () => reject(new Error('课件保存已中止。'));
   });
+}
+
+export async function deleteCampusMaterial(demo:boolean,id:string) {
+  const db=await database(demo);
+  await new Promise<void>((resolve,reject)=>{const tx=db.transaction('materials','readwrite');tx.objectStore('materials').delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(new Error('课件移除失败。'));});
 }

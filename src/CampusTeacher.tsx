@@ -1,13 +1,23 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type ReactNode, type FormEvent } from 'react';
 import { useI18n } from './i18n';
-import { sourcePayload, studyRequest, uid, errorMessage } from './studyClient';
-import type { StudyDocument, StudyUnit } from './studyTypes';
-import type { CampusCourse, CampusMaterial, PersonalApi } from './campusStore';
+import { errorMessage } from './studyClient';
+import type { StudyUnit } from './studyTypes';
+import type { CampusCourse, CampusMaterial, PersonalApi, StudentProgress } from './campusStore';
+import type { Assignment } from './data';
 import Icon from './CampusIcons';
+import CampusLearning from './CampusLearning';
+import {emptyProgress} from './campusStore';
+import {enqueueGeneration,useGenerationJobs,isJobActive} from './teacherGenerationQueue';
 import { Alert, CampusDialog, Empty } from './CampusUI';
 
 type Props = {
-  onCoursework: () => void;
+  demo:boolean;
+  onEditCourse: () => void;
+  onDeleteCourse: () => void;
+  coursework: ReactNode;
+  assignments: Assignment[];
+  onEditAssignment: (assignment: Assignment, regenerate?: boolean) => void;
+  onSaveAssignment: (assignment: Assignment) => void;
   course: CampusCourse;
   materials: CampusMaterial[];
   onSave: (material: CampusMaterial) => Promise<void>;
@@ -16,7 +26,7 @@ type Props = {
   onConnect: () => void;
 };
 export default function CampusTeacher({
-  onCoursework,
+  demo, onEditCourse, onDeleteCourse, coursework, assignments, onEditAssignment, onSaveAssignment,
   course,
   materials,
   onSave,
@@ -24,107 +34,40 @@ export default function CampusTeacher({
   hostConfigured,
   onConnect,
 }: Props) {
-  const { t } = useI18n();
-  const [week, setWeek] = useState(5);
+  const { t, language } = useI18n();
+  const jobs=useGenerationJobs();
+  const pending=(id:string)=>jobs.some(j=>j.demo===demo&&j.materialId===id&&isJobActive(j));
+  const [preview,setPreview]=useState<CampusMaterial|null>(null);
+  const [previewProgress,setPreviewProgress]=useState<StudentProgress>(emptyProgress);
+  const [previewHint,setPreviewHint]=useState('');
+  const [contentKind, setContentKind] = useState<'lecture' | 'coursework'>('lecture');
+  const [uploadKind, setUploadKind] = useState<'lecture' | 'coursework'>('lecture');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [activeMaterial, setActiveMaterial] = useState<CampusMaterial | null>(null);
+  const [week, setWeek] = useState(1);
+  const [weekFilter, setWeekFilter] = useState('all');
+  const filteredMaterials=materials.filter(m=>weekFilter==='all'||(weekFilter==='unconfirmed'?m.weekUnconfirmed:!m.weekUnconfirmed&&m.week===Number(weekFilter)));
+  async function changeWeek(material:CampusMaterial,value:string) {
+    setBusy(material.id);setError('');
+    try { const next={...material,week:value==='unconfirmed'?material.week:Number(value),weekUnconfirmed:value==='unconfirmed',updatedAt:new Date().toISOString()};await onSave(next);if(activeMaterial?.id===material.id){setActiveMaterial(next);setWeek(next.week);} }
+    catch(e){setError(errorMessage(e));}finally{setBusy(null);}
+  }
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<CampusMaterial | null>(null);
   const [dragging, setDragging] = useState(false);
-  const controller = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  async function upload(file?: File) {
-    if (!file || busy) return;
-    setError('');
-    if (!/\.(pdf|pptx|docx|txt|md)$/i.test(file.name)) {
-      setError('请上传 PDF、PPTX、DOCX、TXT 或 Markdown。');
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      setError('上传文件不能超过 25 MB。');
-      return;
-    }
-    const abort = new AbortController();
-    controller.current = abort;
-    setBusy('upload');
-    try {
-      const id = uid();
-      const payload = await sourcePayload(
-        {
-          id,
-          courseId: course.id,
-          name: file.name,
-          blob: file,
-          type: file.type,
-        },
-        abort.signal,
-      );
-      const document = await studyRequest<StudyDocument>(
-        'parse',
-        { ...payload, mode: 'local' },
-        abort.signal,
-      );
-      // Raw parsing is deliberately separate from a semantic model-generated guide.
-      document.units = [];
-      if (!abort.signal.aborted)
-        await onSave({
-          id,
-          courseId: course.id,
-          title: title.trim() || file.name.replace(/\.[^.]+$/, ''),
-          week,
-          name: file.name,
-          status: 'draft',
-          document,
-          blob: file,
-          updatedAt: new Date().toISOString(),
-        });
-      if (!abort.signal.aborted) setTitle('');
-    } catch (e) {
-      if (!abort.signal.aborted) setError(errorMessage(e));
-    } finally {
-      if (!abort.signal.aborted) {
-        setBusy(null);
-        if (fileRef.current) fileRef.current.value = '';
-      }
-    }
+  function upload(file:File,action:'guide'|'questions') {
+    if(!api&&!hostConfigured){onConnect();return;}
+    if(!/\.(pdf|pptx|docx|txt|md)$/i.test(file.name)){setError('请上传 PDF、PPTX、DOCX、TXT 或 Markdown。');return;}
+    if(file.size>25*1024*1024){setError('上传文件不能超过 25 MB。');return;}
+    enqueueGeneration({demo,courseId:course.id,title:title.trim()||file.name.replace(/\.[^.]+$/,''),week,action,language,api,file});
+    setError('');setSelectedFile(null);setActiveMaterial(null);setTitle('');if(fileRef.current)fileRef.current.value='';
   }
-  async function generate(material: CampusMaterial) {
-    if (!api && !hostConfigured) {
-      onConnect();
-      return;
-    }
-    const abort = new AbortController();
-    controller.current = abort;
-    setBusy(material.id);
-    setError('');
-    try {
-      const document = await studyRequest<StudyDocument>(
-        'generate',
-        {
-          document: material.document,
-          credentialScope: 'teacher',
-          ...(api ? { personalApi: api } : {}),
-          allowExternal: true,
-        },
-        abort.signal,
-      );
-      if (!abort.signal.aborted) {
-        const next: CampusMaterial = {
-          ...material,
-          document,
-          status: 'draft',
-          example: false,
-          updatedAt: new Date().toISOString(),
-        };
-        await onSave(next);
-        setEditor(next);
-      }
-    } catch (e) {
-      if (!abort.signal.aborted) setError(errorMessage(e));
-    } finally {
-      if (!abort.signal.aborted) setBusy(null);
-    }
+  function generate(material:CampusMaterial,action:'guide'|'questions'='guide') {
+    if(!api&&!hostConfigured){onConnect();return;}
+    enqueueGeneration({demo,courseId:course.id,title:material.title,week:material.week,action,language,api,material});setError('');
   }
   async function publish(material: CampusMaterial) {
     setError('');
@@ -154,40 +97,31 @@ export default function CampusTeacher({
           </span>
           <h1>{t(course.name)}</h1>
           <p>
-            {course.teacher} · {t(course.description)}
+            {t(course.teacher)} · {t(course.description)}
           </p>
         </div>
         <span className="cp-status connected">{t('教师工作区')}</span>
       </div>
-      <div className="cp-teacher-workflow">
-        {[
-          ['01', '上传课程资料', '按周次归档课件'],
-          ['02', '生成学习内容', '提炼指导与理解题'],
-          ['03', '检查并发布', '让学生直接开始学习'],
-        ].map(([n, title, body]) => (
-          <div key={n}>
-            <span>{n}</span>
-            <div>
-              <strong>{t(title)}</strong>
-              <small>{t(body)}</small>
-            </div>
-            <Icon name="arrow" size={16} />
-          </div>
-        ))}
+      <div className="cp-form-actions cp-course-manage">
+        <button className="cp-button" onClick={onEditCourse}>{t('修改课程')}</button>
+        <button className="cp-button" onClick={onDeleteCourse}>{t('删除课程')}</button>
       </div>
+      <div className="cp-teacher-columns cp-teacher-full"><div>
+      <nav className="cp-tabs cp-upload-kind" aria-label={t('资料类型')}>
+        <button className={uploadKind === 'lecture' ? 'active' : ''} aria-pressed={uploadKind === 'lecture'} disabled={!!busy} onClick={() => setUploadKind('lecture')}>{t('课程课件')}</button>
+        <button className={uploadKind === 'coursework' ? 'active' : ''} aria-pressed={uploadKind === 'coursework'} disabled={!!busy} onClick={() => setUploadKind('coursework')}>Coursework</button>
+      </nav>
+      {uploadKind === 'coursework' ? <section className="cp-card cp-upload-card"><h2>{t('上传作业说明')}</h2>{coursework}</section> : (
       <section className="cp-card cp-upload-card">
-        <div className="cp-form-actions" style={{ marginBottom: 20 }}>
-          <span className="cp-tag">{t('课程课件')}</span>
-          <button className="cp-button" onClick={onCoursework}>
-            Coursework / 上传作业说明 →
-          </button>
-        </div>
         <div className="cp-section-heading">
           <div>
             <h2>{t('上传本周课件')}</h2>
             <p>{t('文件先保存为草稿，生成内容经你确认后再发布。')}</p>
           </div>
-          <span className="cp-tag">PDF / PPTX / DOCX / TXT / MD</span>
+          <div className="cp-form-actions">
+            <button className="cp-button" disabled={!!busy || !title.trim() || (!selectedFile && !activeMaterial)} onClick={() => { if(activeMaterial) void generate({...activeMaterial,title:title.trim(),week}, 'guide'); else if(selectedFile) void upload(selectedFile,'guide'); }}>{t('AI 生成草稿')}</button>
+            <button className="cp-button primary" disabled={!!busy || !title.trim() || (!selectedFile && !activeMaterial)} onClick={() => { if(activeMaterial) void generate({...activeMaterial,title:title.trim(),week}, 'questions'); else if(selectedFile) void upload(selectedFile,'questions'); }}>{t('AI 生成题目')}</button>
+          </div>
         </div>
         <div className="cp-upload-meta">
           <label>
@@ -196,7 +130,7 @@ export default function CampusTeacher({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={150}
-              placeholder={t('留空则使用文件名')}
+              placeholder={t('填写课件标题')}
               disabled={!!busy}
             />
           </label>
@@ -225,19 +159,19 @@ export default function CampusTeacher({
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            void upload(e.dataTransfer.files[0]);
+            const file=e.dataTransfer.files[0]; if(file) { setSelectedFile(file); setActiveMaterial(null); if(!title) setTitle(file.name.replace(/\.[^.]+$/, '')); }
           }}
         >
           <span>
             <Icon name="upload" size={25} />
           </span>
-          <h3>{t(busy === 'upload' ? '正在解析课件…' : '将课件拖到这里')}</h3>
-          <p>{t('每份不超过 25 MB，支持选择文件上传。')}</p>
+          <h3>{busy === 'upload' ? t('正在解析课件…') : selectedFile?.name || t('将课件拖到这里')}</h3>
+          <p>{t('选择文件并填写标题，再使用右上角 AI 操作。每份不超过 25 MB。')}</p>
           <input
             ref={fileRef}
             type="file"
             accept=".pdf,.pptx,.docx,.txt,.md"
-            onChange={(e) => void upload(e.target.files?.[0])}
+            onChange={(e) => { const file=e.target.files?.[0]; if(file) { setSelectedFile(file); setActiveMaterial(null); if(!title) setTitle(file.name.replace(/\.[^.]+$/, '')); } }}
             disabled={!!busy}
             aria-label={t('选择课件文件')}
           />
@@ -250,8 +184,17 @@ export default function CampusTeacher({
             {t('选择文件')}
           </button>
         </div>
+      {activeMaterial && <div className="cp-generated-preview"><h3>{t('生成结果与编辑')}</h3>
+        <GuideEditor key={activeMaterial.updatedAt} material={activeMaterial} onSave={async next => {await onSave(next); setActiveMaterial(next);}} />
+      </div>}
       </section>
+      )}
       {error && <Alert>{t(error)}</Alert>}
+      <nav className="cp-tabs cp-upload-kind" aria-label={t('已保存内容')}>
+        <button className={contentKind === 'lecture' ? 'active' : ''} aria-pressed={contentKind === 'lecture'} onClick={() => setContentKind('lecture')}>{t('课件与学习内容')} · {materials.length}</button>
+        <button className={contentKind === 'coursework' ? 'active' : ''} aria-pressed={contentKind === 'coursework'} onClick={() => setContentKind('coursework')}>{t('作业布置')} · {assignments.length}</button>
+      </nav>
+      {contentKind === 'lecture' ? <>
       <div className="cp-section-heading">
         <div>
           <span className="cp-eyebrow">COURSE MATERIALS</span>
@@ -270,8 +213,9 @@ export default function CampusTeacher({
           )}
         </button>
       </div>
+      <label className="cp-community-filter">{t('按周次查看')}<select aria-label={t('按周次查看')} value={weekFilter} onChange={e=>setWeekFilter(e.target.value)}><option value="all">{t('全部周次')}</option><option value="unconfirmed">{t('周次待确认')}</option>{Array.from({length:20},(_,i)=><option key={i} value={i+1}>{t('第 {week} 周',{week:i+1})}</option>)}</select></label>
       <div className="cp-teacher-material-list">
-        {materials.map((material) => (
+        {filteredMaterials.map((material) => (
           <article key={material.id} className="cp-card cp-teacher-material">
             <div className="cp-material-file">
               <Icon name="file" size={26} />
@@ -280,7 +224,7 @@ export default function CampusTeacher({
             <div className="cp-material-description">
               <div>
                 <span className="cp-tag">
-                  {t('第 {week} 周', { week: material.week })}
+                  {material.weekUnconfirmed ? t('周次待确认') : t('第 {week} 周', { week: material.week })}
                 </span>
                 <span
                   className={`cp-status ${material.status === 'published' ? 'connected' : 'draft'}`}
@@ -291,7 +235,8 @@ export default function CampusTeacher({
                   <span className="cp-tag">{t('示例')}</span>
                 )}
               </div>
-              <h3>{t(material.title)}</h3>
+              {material.kind && <span className="cp-tag">{t(({lecture:'讲座课件',tutorial:'辅导课资料',reference:'参考文献',template:'空白模板'})[material.kind])}</span>}
+              <h3>{t(material.title)}</h3>{pending(material.id)&&<span className="cp-status">{t('后台生成中')}</span>}
               <p>
                 {t('{pages} 页 · {units} 个模块 · {questions} 道练习', {
                   pages: material.document.pages.length,
@@ -300,12 +245,16 @@ export default function CampusTeacher({
                     .length,
                 })}
               </p>
-              <small className="cp-muted">{material.name}</small>
+              <p className="cp-muted">{t(material.document.mode === 'ai' ? 'AI 已生成，待核对' : '仅原文，待生成')}{material.document.pages.some(p=>!p.text.trim()) && ` · ${material.document.pages.filter(p=>!p.text.trim()).length} ${t('页未提取到文字')}`}</p>
+              {material.document.warnings.length > 0 && <details><summary>{t('解析与生成提示')}</summary>{material.document.warnings.map((w,i)=><p className="cp-fineprint" key={i}>{w}</p>)}</details>}
+              <label className="cp-material-week-picker">{t('归属周次')}<select aria-label={`${t(material.title)} · ${t('归属周次')}`} disabled={busy===material.id||pending(material.id)} value={material.weekUnconfirmed?'unconfirmed':String(material.week)} onChange={e=>void changeWeek(material,e.target.value)}><option value="unconfirmed">{t('周次待确认')}</option>{Array.from({length:20},(_,i)=><option key={i} value={i+1}>{t('第 {week} 周',{week:i+1})}</option>)}</select></label>
+              <small className="cp-muted">{material.name}</small>{material.document.originalUrl && <a className="cp-link" href={material.document.originalUrl} download={material.name}>{t('下载原文件')}</a>}
             </div>
             <div className="cp-material-actions">
+              <button className="cp-button" disabled={pending(material.id)} onClick={()=>{setPreview(structuredClone(material));setPreviewProgress(emptyProgress());setPreviewHint('');}}>{t('学生视角预览')}</button>
               <button
                 className="cp-button"
-                disabled={!!busy}
+                disabled={busy===material.id||pending(material.id)}
                 onClick={() => setEditor(structuredClone(material))}
               >
                 <Icon name="eye" size={15} />
@@ -313,7 +262,7 @@ export default function CampusTeacher({
               </button>
               <button
                 className="cp-button"
-                disabled={!!busy}
+                disabled={busy===material.id||pending(material.id)}
                 onClick={() => void generate(material)}
               >
                 <Icon name="layers" size={15} />
@@ -322,12 +271,15 @@ export default function CampusTeacher({
                     ? '处理中…'
                     : material.document.units.length
                       ? '重新生成草稿'
-                      : '生成指导与练习',
+                      : 'AI 生成草稿',
                 )}
+              </button>
+              <button className="cp-button" disabled={busy===material.id||pending(material.id)} onClick={()=>generate(material,'questions')}>
+                <Icon name="check" size={15}/>{t(material.document.units.some(u=>u.questions.length)?'重新生成题目':'AI 生成题目')}
               </button>
               <button
                 className={`cp-button ${material.status !== 'published' ? 'primary' : ''}`}
-                disabled={!!busy}
+                disabled={busy===material.id||pending(material.id)}
                 onClick={() => void publish(material)}
               >
                 {t(material.status === 'published' ? '撤回发布' : '发布给学生')}
@@ -336,18 +288,41 @@ export default function CampusTeacher({
             </div>
           </article>
         ))}
+        {!filteredMaterials.length && materials.length>0 && <Empty title={t('这个周次还没有课件')}/>}
         {!materials.length && (
           <Empty title={t('这门课还没有课件')}>
             <p>{t('上传第一份资料，建立课程的学习空间。')}</p>
           </Empty>
         )}
       </div>
+      </> : <section className="cp-teacher-material-list">
+        <div className="cp-section-heading"><h2>{t('作业布置')}</h2><button className="cp-button" onClick={() => {setUploadKind('coursework');window.scrollTo({top:0,behavior:'smooth'});}}>{t('布置 Coursework')}</button></div>
+        {assignments.map(a => {
+          const draft=a.coursework?.status === 'draft';
+          const scheduled=!draft && !!a.coursework?.releaseAt && Date.parse(a.coursework.releaseAt)>Date.now();
+          return <article key={a.id} className="cp-card cp-teacher-material">
+            <div className="cp-material-file"><Icon name="file" size={26}/><small>COURSEWORK</small></div>
+            <div className="cp-material-description"><span className={`cp-status ${draft?'draft':'connected'}`}>{t(draft?'草稿':scheduled?'待开始':'已发布')}</span><h3>{t(a.title)}</h3><p>{a.brief}</p><small>{t('截止日期')} · {a.coursework?.dueAt || a.due || '—'}</small></div>
+            <div className="cp-material-actions">
+              <button className="cp-button" onClick={() => onEditAssignment(a)}><Icon name="eye" size={15}/>{t('检查与编辑')}</button>
+              <button className="cp-button" disabled={!a.coursework?.document} title={!a.coursework?.document?t('请先上传作业原文件'):undefined} onClick={() => onEditAssignment(a,true)}><Icon name="layers" size={15}/>{t('重新生成草稿')}</button>
+              <button className={`cp-button ${draft?'primary':''}`} onClick={() => {
+                if(draft) {onEditAssignment(a);return;}
+                onSaveAssignment({...a,coursework:{releaseAt:a.startsOn?a.startsOn+'T00:00:00Z':'',dueAt:a.due?a.due+'T23:59:00Z':'',timezone:'UTC',submissionType:'',deliverables:'',rubric:'',revisions:[],...a.coursework,status:'draft'}});
+              }}>{t(draft?'检查并发布':'撤回发布')}</button>
+            </div>
+          </article>;
+        })}
+        {!assignments.length && <Empty title={t('暂无课程作业')}/>}
+      </section>}
+      </div></div>
       {busy && busy !== 'upload' && (
         <div className="cp-loading" role="status">
           <i />
           {t('正在处理课件；生成可能需要一分钟，请保持页面打开。')}
         </div>
       )}
+      {preview && <CampusDialog title={t('学生视角预览')} wide onClose={()=>setPreview(null)}><p className="cp-info">{t('预览中的答题与进度不会写入学生记录；AI 问答不使用学生额度。')}</p>{previewHint&&<Alert>{previewHint}</Alert>}<CampusLearning material={preview} progress={previewProgress} onProgress={setPreviewProgress} api={null} onConnect={()=>setPreviewHint(t('预览仅展示问答入口，实际问答由学生使用自己的 API。'))} onBack={()=>setPreview(null)}/></CampusDialog>}
       {editor && (
         <CampusDialog
           title={t('检查与编辑学习内容')}
@@ -407,6 +382,7 @@ function GuideEditor({
   }
   return (
     <form className="cp-form cp-guide-editor" onSubmit={save}>
+      <p className="cp-info">{t('可直接修改讲解、知识点、阅读步骤及题目。保存后为草稿，检查后再发布。')}</p>
       <div className="cp-form-row">
         <label>
           {t('课件标题')}
@@ -425,7 +401,7 @@ function GuideEditor({
             max={20}
             value={draft.week}
             onChange={(e) =>
-              setDraft((d) => ({ ...d, week: Number(e.target.value) }))
+              setDraft((d) => ({ ...d, week: Number(e.target.value), weekUnconfirmed:false }))
             }
             required
           />
@@ -511,9 +487,10 @@ function GuideEditor({
                   rows={3}
                 />
               </label>
+              <button className="cp-button" type="button" disabled={busy} onClick={()=>updateUnit(i,{questions:[...unit.questions,{id:crypto.randomUUID(),prompt:'',options:['','','',''],answer:0,explanation:'',sourcePages:[unit.pages[0]]}]})}>{t('添加选择题')}</button>
               {unit.questions.map((q, qi) => (
                 <fieldset className="cp-edit-question" key={q.id}>
-                  <legend>{t('练习 {number}', { number: qi + 1 })}</legend>
+                  <legend>{t('练习 {number}', { number: qi + 1 })}</legend><button type="button" className="cp-link" onClick={()=>updateUnit(i,{questions:unit.questions.filter(item=>item.id!==q.id)})}>{t('删除这道题')}</button>
                   <label>
                     {t('题目')}
                     <input
@@ -531,6 +508,7 @@ function GuideEditor({
                       }
                     />
                   </label>
+                  <label>{t('引用原文页')}<select value={q.sourcePages[0]} onChange={e=>updateUnit(i,{questions:unit.questions.map((item,k)=>k===qi?{...item,sourcePages:[Number(e.target.value)]}:item)})}>{draft.document.pages.map(p=><option value={p.page} key={p.page}>{t('第 {page} 页',{page:p.page})}</option>)}</select></label>
                   {q.options.map((option, oi) => (
                     <label key={oi}>
                       {t('选项')} {'ABCD'[oi]}

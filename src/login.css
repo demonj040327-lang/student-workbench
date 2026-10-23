@@ -96,3 +96,8 @@
   margin-top: 24px;
   font-size: 12px;
 }
+
+.login-language {display:flex;justify-content:flex-end;margin-bottom:24px;}
+.login-logo {display:inline-block;object-fit:contain;}
+.login-role-options button svg {color:#1d1d1f;}
+.login-panel h1 {letter-spacing:-1px;}

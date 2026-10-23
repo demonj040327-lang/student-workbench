@@ -17,3 +17,6 @@ server/__pycache__/
 /data/*.db-journal
 /data/*.db-wal
 /data/*.db-shm
+
+# Private local course corpus and model outputs
+/data/local-demo-library/

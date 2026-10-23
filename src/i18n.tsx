@@ -7,7 +7,15 @@ type Values=Record<string,string|number|undefined>;
 const dictionary:Record<string,string>={...english,...campusEnglish};
 const reverse=Object.fromEntries(Object.entries(dictionary).map(([zh,en])=>[en,zh]));
 const storageKey='student-workbench-language';
-export function readLanguage():Language {try{return localStorage.getItem(storageKey)==='en'?'en':'zh';}catch{return 'zh';}}
+export function readLanguage():Language {
+  try {
+    // One-time migration to the English demo requested by the project owner.
+    if(localStorage.getItem('workbench-language-default-v2')!=='1'){
+      localStorage.setItem('workbench-language-default-v2','1');localStorage.setItem(storageKey,'en');return 'en';
+    }
+    return localStorage.getItem(storageKey)==='zh'?'zh':'en';
+  }catch{return 'en';}
+}
 export function translate(message:string,language:Language,values:Values={}):string {
   const canonical=Object.hasOwn(reverse,message)?reverse[message]:message;
   const status=message.match(/^模型服务返回 (\d+)。请核对接口权限、模型名称或额度；本次没有生成 AI 答案。$/);
@@ -25,4 +33,4 @@ export function I18nProvider({children}:{children:ReactNode}) {
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useI18n():I18n {const value=useContext(Context);if(!value)throw new Error('I18nProvider is missing');return value;}
-export function LanguageSwitcher(){const {language,setLanguage}=useI18n();return <div className="language-switcher" role="group" aria-label="Language / 语言"><button type="button" onClick={()=>setLanguage('zh')} aria-pressed={language==='zh'} aria-label="切换为中文">中文</button><button type="button" onClick={()=>setLanguage('en')} aria-pressed={language==='en'} aria-label="Switch to English">EN</button></div>;}
+export function LanguageSwitcher(){const {language,setLanguage,t}=useI18n();return <div className="language-switcher" role="group" aria-label="Language / 语言"><button type="button" onClick={()=>setLanguage('zh')} aria-pressed={language==='zh'} aria-label={t('切换为中文')}>中文</button><button type="button" onClick={()=>setLanguage('en')} aria-pressed={language==='en'} aria-label={t('切换为英文')}>EN</button></div>;}
