@@ -38,6 +38,29 @@ db.exec(`
   );
 `);
 
+
+const courseColumns = new Set(
+  db.prepare('PRAGMA table_info(courses)')
+    .all()
+    .map((column) => column.name)
+);
+
+const extraColumns = {
+  teacher: "TEXT NOT NULL DEFAULT ''",
+  description: "TEXT NOT NULL DEFAULT ''",
+  subject: "TEXT NOT NULL DEFAULT ''",
+  color: "TEXT NOT NULL DEFAULT '#6f8264'",
+  material_name: 'TEXT',
+  topic: 'TEXT'
+};
+
+for (const [name, definition] of Object.entries(extraColumns)) {
+  if (!courseColumns.has(name)) {
+    db.exec(`ALTER TABLE courses ADD COLUMN ${name} ${definition}`);
+  }
+}
+
+
 export function createUser(user) {
   db.prepare(`
     INSERT INTO users (id, username, display_name, role)
@@ -49,33 +72,83 @@ export function getUsers() {
   return db.prepare('SELECT * FROM users').all();
 }
 
+
 export function createCourse(course) {
-  db.prepare(`
-    INSERT INTO courses (id, name, code, teacher_id)
-    VALUES (?, ?, ?, ?)
+  const result = db.prepare(`
+    INSERT INTO courses (
+      id,
+      name,
+      code,
+      teacher_id,
+      teacher,
+      description,
+      subject,
+      color,
+      material_name,
+      topic
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     course.id,
     course.name,
     course.code,
-    course.teacherId
+    course.teacherId,
+    course.teacher ?? '',
+    course.description ?? '',
+    course.subject ?? '',
+    course.color ?? '#6f8264',
+    course.materialName ?? null,
+    course.topic ?? null
   );
+
+  return result.changes > 0;
 }
+
 
 export function getCourses() {
   return db.prepare('SELECT * FROM courses').all();
 }
 
+
 export function updateCourse(id, name) {
-  return db.prepare(`
-    UPDATE courses SET name = ? WHERE id = ?
-  `).run(name, id);
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) {
+    throw new Error('课程名称必须为 1–80 个字符');
+  }
+
+  const result = db.prepare(`
+    UPDATE courses
+    SET name = ?
+    WHERE id = ?
+  `).run(name.trim(), id);
+
+  return result.changes > 0;
 }
 
+
+
 export function deleteCourse(id) {
-  return db.prepare(`
-    DELETE FROM courses WHERE id = ?
-  `).run(id);
+  // 使用事务保证关联记录和课程删除同时成功
+  db.exec('BEGIN IMMEDIATE');
+
+  try {
+    db.prepare(`
+      DELETE FROM enrollments
+      WHERE course_id = ?
+    `).run(id);
+
+    const result = db.prepare(`
+      DELETE FROM courses
+      WHERE id = ?
+    `).run(id);
+
+    db.exec('COMMIT');
+    return result.changes > 0;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
+
 
 export function closeDatabase() {
   db.close();

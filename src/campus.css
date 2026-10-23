@@ -3806,3 +3806,30 @@
 .cp-account-logout:hover {
   background: #fef2f2;
 }
+
+
+.cp-db-preview {
+  margin: 16px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--cp-border, #d9dfd7);
+  border-radius: 12px;
+}
+
+.cp-db-preview h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.cp-db-preview p {
+  margin: 6px 0 12px;
+  font-size: 13px;
+}
+
+.cp-db-preview div {
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cp-db-preview div:last-child {
+  border-bottom: none;
+}

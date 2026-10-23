@@ -1,4 +1,6 @@
 import CourseworkEditor from './CourseworkEditor';
+
+import { fetchDatabaseCourses } from './campusApi';
 import CampusLearning from './CampusLearning';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LanguageSwitcher, useI18n } from './i18n';
@@ -75,6 +77,9 @@ export default function CampusApp({
   );
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [data, setData] = useState(() => loadCampusData(demo));
+  const [databaseCourses, setDatabaseCourses] = useState<CampusCourse[]>([]);
+  const [databaseLoading, setDatabaseLoading] = useState(false);
+  const [databaseError, setDatabaseError] = useState('');
   const [progress, setProgress] = useState(() => loadCampusProgress(demo));
   const [materials, setMaterials] = useState<CampusMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
@@ -135,6 +140,25 @@ export default function CampusApp({
   );
   const materialCounts = (id: string) =>
     visibleMaterials.filter((m) => m.courseId === id);
+
+  // 读取 SQLite 数据库中的课程，仅用于预览
+  async function loadDatabasePreview() {
+    setDatabaseLoading(true);
+    setDatabaseError('');
+
+    try {
+      const courses = await fetchDatabaseCourses();
+      setDatabaseCourses(courses);
+    } catch (error) {
+      setDatabaseError(
+        error instanceof Error ? error.message : '读取数据库失败'
+      );
+    } finally {
+      setDatabaseLoading(false);
+    }
+  }
+
+
 
   useEffect(() => {
     try {
@@ -653,6 +677,7 @@ export default function CampusApp({
                   <h1>{t('教学总览')}</h1>
                   <p>{t('管理课程资料，准备下一次有依据的学习。')}</p>
                 </div>
+
                 <button
                   className="cp-button primary"
                   onClick={() => setDialog('course')}
@@ -660,8 +685,49 @@ export default function CampusApp({
                   <Icon name="plus" size={17} />
                   {t('创建课程')}
                 </button>
+
+                {role === 'teacher' && (
+                  <button
+                    type="button"
+                    className="cp-button"
+                    onClick={() => void loadDatabasePreview()}
+                    disabled={databaseLoading}
+                  >
+                    {databaseLoading ? '读取中...' : '查看 SQLite 课程'}
+                  </button>
+                )}
               </header>
+
+
+              {role === 'teacher' && (
+                <section className="cp-db-preview">
+                  <h3>SQLite 数据库课程预览</h3>
+                  <p>仅用于测试数据库连接，不会修改现有课程。</p>
+
+                  {databaseError && (
+                    <p role="alert">{databaseError}</p>
+                  )}
+
+                  {databaseCourses.map((course) => (
+                    <div key={course.id}>
+                      <strong>{course.name}</strong>
+                      {' · '}
+                      {course.code}
+                      {' · '}
+                      {course.teacher || '未设置教师'}
+                    </div>
+                  ))}
+
+                  {!databaseLoading &&
+                    databaseCourses.length === 0 &&
+                    !databaseError && (
+                      <p>点击上方按钮读取 SQLite 课程。</p>
+                    )}
+                </section>
+              )}
+
               <div className="cp-teacher-stats">
+
                 {[
                   [viewCourses.length, '门教学课程', 'book'],
                   [
