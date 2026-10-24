@@ -1,3 +1,32 @@
+export type ClassroomAudioSource = 'microphone' | 'display';
+
+// Must be called directly from the user's click, before network/storage awaits.
+export async function requestClassroomDisplay(): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getDisplayMedia)
+    throw Error('当前浏览器不支持共享音频，请使用电脑端 Chrome 或 Edge。');
+  try {
+    const options = {
+      video: { displaySurface: 'browser' },
+      audio: { suppressLocalAudioPlayback: false } as MediaTrackConstraints,
+      systemAudio: 'include',
+      selfBrowserSurface: 'exclude',
+      surfaceSwitching: 'exclude',
+    };
+    const stream = await navigator.mediaDevices.getDisplayMedia(options);
+    if (!stream.getAudioTracks().length) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw Error(
+        '没有共享到音频。请重新选择播放视频的浏览器标签页，并勾选“分享标签页音频”；共享窗口或屏幕是否带声音取决于浏览器与系统。',
+      );
+    }
+    return stream;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError')
+      throw Error('音频共享已取消或未获允许，请重新选择并允许共享音频。');
+    throw error;
+  }
+}
+
 export type ClassroomCapture = { stop: () => Promise<void>; abort: () => void };
 export type CaptureCallbacks = {
   onText: (confirmed: string, interim: string) => void;
@@ -8,15 +37,18 @@ export type CaptureCallbacks = {
 export async function beginClassroomCapture(
   transcribe: boolean,
   callbacks: CaptureCallbacks,
+  displayStream?: MediaStream,
 ): Promise<{ capture: ClassroomCapture; mimeType: string }> {
   if (
-    !navigator.mediaDevices?.getUserMedia ||
+    (!displayStream && !navigator.mediaDevices?.getUserMedia) ||
     typeof MediaRecorder === 'undefined'
-  )
+  ) {
+    displayStream?.getTracks().forEach((track) => track.stop());
     throw Error(
       '此浏览器无法录音，请通过 HTTPS 或 localhost 使用支持录音的浏览器。',
     );
-  let stream: MediaStream | undefined,
+  }
+  let stream: MediaStream | undefined = displayStream,
     recorder: MediaRecorder | undefined,
     socket: WebSocket | undefined,
     context: AudioContext | undefined,
@@ -34,6 +66,7 @@ export async function beginClassroomCapture(
     void context?.close().catch(() => {});
     socket?.close();
     stream?.getTracks().forEach((t) => t.stop());
+    displayStream?.getTracks().forEach((t) => t.stop());
   };
   try {
     if (transcribe) {
@@ -100,10 +133,26 @@ export async function beginClassroomCapture(
         };
       });
     }
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: false,
-    });
+    if (displayStream) {
+      if (
+        !displayStream
+          .getAudioTracks()
+          .some((track) => track.readyState === 'live')
+      )
+        throw Error('音频共享已结束，请重新选择视频音频来源。');
+      // Retain the display stream only to monitor its lifetime. Never record or send video.
+      stream = new MediaStream(displayStream.getAudioTracks());
+      displayStream.getVideoTracks().forEach((track) =>
+        track.addEventListener('ended', () => {
+          if (!closing) callbacks.onDeviceEnded();
+        }),
+      );
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false,
+      });
+    }
     stream.getAudioTracks().forEach((track) =>
       track.addEventListener('ended', () => {
         if (!closing) callbacks.onDeviceEnded();
@@ -182,6 +231,7 @@ export async function beginClassroomCapture(
         node?.disconnect();
         await context?.close().catch(() => {});
         stream?.getTracks().forEach((t) => t.stop());
+        displayStream?.getTracks().forEach((t) => t.stop());
         if (socket?.readyState === WebSocket.OPEN) {
           socket.send(new ArrayBuffer(0));
           let timer: ReturnType<typeof setTimeout> | undefined;
