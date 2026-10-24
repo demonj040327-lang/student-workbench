@@ -1,0 +1,13 @@
+{
+  "mode": "curated",
+  "revision": "video-demo-2026-10-24-v1",
+  "items": [
+    {"course": "hci", "name": "hci-week-5-lecture.pdf", "title": "Data Analysis and Report Writing", "week": 5, "topic": "Data Analysis and Report Writing", "reason": "33-page PDF; clear thematic-analysis example, guidance and questions; main recording path."},
+    {"course": "hci", "name": "week03hci.pdf", "title": "HCI Methodologies: Questionnaires and Study Design", "week": 3, "topic": "Questionnaires and Study Design", "reason": "Demonstrates a second week, five guided modules and source-linked questions."},
+    {"course": "mlp", "name": "mlp03-mlp(1).pdf", "title": "Deep Neural Networks", "topic": "Deep Neural Networks", "reason": "42-page PDF with XOR and network explanations; contrasting technical subject."},
+    {"course": "aml", "name": "W01L02-classification-handout.pdf", "title": "Introduction to Classification", "week": 1, "topic": "Introduction to Classification", "reason": "12-page handout; concise parsed text, four modules and questions."},
+    {"course": "cgr", "name": "CGR26_2.pptx", "title": "Imaging: Radiometry and Photometry", "topic": "Radiometry and Photometry", "reason": "PPTX below normal upload limit; secondary format demonstration with text-only limitations."},
+    {"course": "hci", "name": "CW1 Assignment Brief and Report Template.pdf", "reason": "Five-page authentic brief for teacher review, date confirmation and publication."},
+    {"course": "cgr", "name": "CWSpec2026.pdf", "reason": "Multi-stage authentic brief; suitable for demonstrating student planning after teacher confirmation."}
+  ]
+}

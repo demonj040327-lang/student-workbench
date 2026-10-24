@@ -7,25 +7,29 @@ class PeerError extends Error {constructor(message,status=400){super(message);th
 const check=(condition,message,status)=>{if(!condition)throw new PeerError(message,status);};
 const text=(value,max=160)=>{check(typeof value==='string'&&value.trim().length>0&&value.length<=max,'字段为空或超出长度限制。');return value.trim();};
 const overlap=(a,b)=>a===b||a==='both'||b==='both';
-const sameTopic=(a,b)=>a.courseId===b.courseId&&a.key===b.key;
+const sameTopic=(a,b)=>a.courseId===b.courseId;
 export function rankPeers(me,profiles){
  if(!me?.active)return [];
  return profiles.filter(p=>p.id!==me.id&&p.active&&overlap(p.language,me.language)&&p.slot===me.slot).map(p=>{
-  const learn=me.learn.filter(a=>p.teach.some(b=>sameTopic(a,b)));
-  const teach=me.teach.filter(a=>p.learn.some(b=>sameTopic(a,b)));
+  const learn=topics(me.learn).filter(a=>p.teach.some(b=>sameTopic(a,b)));
+  const teach=topics(me.teach).filter(a=>p.learn.some(b=>sameTopic(a,b)));
   return {profile:p,learn,teach,score:3*(learn.length+teach.length)+(learn.length&&teach.length?2:0)};
  }).filter(m=>m.learn.length||m.teach.length).sort((a,b)=>b.score-a.score||a.profile.id.localeCompare(b.profile.id));
 }
-function topics(value){check(Array.isArray(value)&&value.length<=20,'每种需求最多选择 20 个知识点。');return value.map(t=>({courseId:text(t.courseId),courseCode:text(t.courseCode,40),key:text(t.key),label:text(t.label,200),materialId:typeof t.materialId==='string'?t.materialId.slice(0,160):''})).filter((t,i,a)=>a.findIndex(b=>sameTopic(t,b))===i);}
+// Canonical course references also migrate legacy knowledge-point selections.
+function courseReference(t){const courseId=text(t.courseId),courseCode=text(t.courseCode,40);return {courseId,courseCode,key:`course:${courseId}`,label:t.key===`course:${courseId}`?text(t.label,200):courseCode,materialId:''};}
+function topics(value){check(Array.isArray(value)&&value.length<=100,'每种需求最多选择 100 门课程。');return value.map(courseReference).filter((t,i,a)=>a.findIndex(b=>sameTopic(t,b))===i);}
+function migrateCourses(state){for(const p of state.profiles){p.teach=topics(p.teach);p.learn=topics(p.learn);}for(const s of state.sessions)s.topic=courseReference(s.topic);return state;}
+
 export function saveProfile(state,id,input){
- const teach=topics(input.teach),learn=topics(input.learn);check(teach.length+learn.length>0,'请至少选择一个愿意讲解或希望学习的知识点。');
+ const teach=topics(input.teach),learn=topics(input.learn);check(teach.length+learn.length>0,'请至少选择一门愿意讲解或希望学习的课程。');
  check(['zh','en','both'].includes(input.language),'请选择交流语言。');check(['weekday-day','weekday-evening','weekend'].includes(input.slot),'请选择共同可用时段。');
  const p={id,name:text(input.name,60),teach,learn,language:input.language,slot:input.slot,active:input.active!==false};state.profiles=[...state.profiles.filter(p=>p.id!==id),p];return p;
 }
 export function requestSession(state,actor,input){
- const me=state.profiles.find(p=>p.id===actor),match=rankPeers(me,state.profiles).find(m=>m.profile.id===input.partnerId);check(match,'当前没有相符的课程、知识点、语言或可用时段。');
- const direction=input.direction;check(['learn','teach'].includes(direction),'互助方向无效。');const topic=match[direction].find(t=>t.courseId===input.courseId&&t.key===input.topicKey);check(topic,'请选择匹配理由中列出的知识点。');
- check(!state.sessions.some(s=>[s.requesterId,s.recipientId].includes(actor)&&[s.requesterId,s.recipientId].includes(input.partnerId)&&sameTopic(s.topic,topic)&&['pending','accepted'].includes(s.status)),'这个知识点已有待处理或进行中的邀请。',409);
+ const me=state.profiles.find(p=>p.id===actor),match=rankPeers(me,state.profiles).find(m=>m.profile.id===input.partnerId);check(match,'当前没有相符的课程、语言或可用时段。');
+ const direction=input.direction;check(['learn','teach'].includes(direction),'互助方向无效。');const topic=match[direction].find(t=>t.courseId===input.courseId);check(topic,'请选择匹配理由中列出的课程。');
+ check(!state.sessions.some(s=>[s.requesterId,s.recipientId].includes(actor)&&[s.requesterId,s.recipientId].includes(input.partnerId)&&sameTopic(s.topic,topic)&&['pending','accepted'].includes(s.status)),'这门课程已有待处理或进行中的邀请。',409);
  const s={id:randomUUID(),requesterId:actor,recipientId:match.profile.id,teacherId:direction==='learn'?match.profile.id:actor,learnerId:direction==='learn'?actor:match.profile.id,topic,language:me.language==='both'?match.profile.language:me.language,slot:me.slot,status:'pending',createdAt:new Date().toISOString(),messages:[]};state.sessions.unshift(s);return s;
 }
 export function transitionSession(state,actor,input){
@@ -39,7 +43,7 @@ export function postMessage(state,actor,input){
 }
 export function peerSnapshot(state,actor){const me=state.profiles.find(p=>p.id===actor)||null;return {actorId:actor,me,matches:rankPeers(me,state.profiles),sessions:state.sessions.filter(s=>[s.requesterId,s.recipientId].includes(actor)).map(s=>({...s,requesterName:state.profiles.find(p=>p.id===s.requesterId)?.name||'—',recipientName:state.profiles.find(p=>p.id===s.recipientId)?.name||'—'}))};}
 const actors=['demo-learner','demo-helper','demo-partner'];
-function seed(state,input){const topic=topics(input.topics);check(topic.length>0,'当前课程还没有可用于演示的知识点。');const first=[topic[0]],second=[topic[1]||topic[0]];for(const [id,name,teach,learn] of [['demo-learner','演示同学 A',second,first],['demo-helper','演示同学 B',first,second],['demo-partner','演示同学 C',first,[]]])saveProfile(state,id,{name,teach,learn,language:'both',slot:'weekday-evening'});}
+function seed(state,input){const topic=topics(input.topics);check(topic.length>0,'请先选择演示课程。');const first=[topic[0]],second=[topic[1]||topic[0]];for(const [id,name,teach,learn] of [['demo-learner','演示同学 A',second,first],['demo-helper','演示同学 B',first,second],['demo-partner','演示同学 C',first,[]]])saveProfile(state,id,{name,teach,learn,language:'both',slot:'weekday-evening'});}
 async function body(req){check(req.headers['content-type']?.startsWith('application/json'),'需要 JSON 请求体。',415);let raw='';for await(const chunk of req){raw+=chunk;check(Buffer.byteLength(raw)<=32768,'请求内容过长。',413);}try{const value=JSON.parse(raw);check(value&&typeof value==='object'&&!Array.isArray(value),'请求结构无效。');return value;}catch(e){if(e instanceof PeerError)throw e;throw new PeerError('请求 JSON 无效。');}}
 export function createPeerMiddleware({root=process.cwd()}={}){
  const directory=join(root,'data','peer-learning');
@@ -51,6 +55,7 @@ export function createPeerMiddleware({root=process.cwd()}={}){
    const demo=url.searchParams.get('demo')==='1';const path=url.pathname.slice('/api/peer-learning'.length)||'/';
    check((req.method==='GET'&&path==='/')||(req.method==='POST'&&['/profile','/request','/transition','/message',...(demo?['/seed','/actor']:[])].includes(path)),'互助接口不存在。',404);
    const file=join(directory,demo?'demo.json':'workspace.json');const state=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{version:1,tokens:{},profiles:[],sessions:[]};check(state.version===1&&Array.isArray(state.profiles)&&Array.isArray(state.sessions),'互助记录无法读取，请保留数据并检查服务。',500);
+   migrateCourses(state);
    const persist=()=>{mkdirSync(directory,{recursive:true});const temp=file+'.tmp';writeFileSync(temp,JSON.stringify(state),{mode:0o600});renameSync(temp,file);};
    const cookies=Object.fromEntries((req.headers.cookie||'').split(';').map(x=>x.trim().split('=')));let token=cookies.workbench_peer;const setCookies=[];
    if(!/^[a-f0-9]{64}$/.test(token||'')){token=randomBytes(32).toString('hex');setCookies.push(`workbench_peer=${token}; Path=/api/peer-learning; HttpOnly; SameSite=Strict; Max-Age=2592000`);}
