@@ -20,3 +20,6 @@ server/__pycache__/
 
 # Private local course corpus and model outputs
 /data/local-demo-library/
+
+# Private local peer-learning profiles and messages
+/data/peer-learning/

@@ -543,5 +543,22 @@
   "第 {number} 题": "Question {number}",
   "载入作业流程示例（非真实作业）": "Load coursework workflow example (fictional)",
   "布置课程作业": "Create coursework",
-  "个人": "Personal"
+  "个人": "Personal",
+  "同伴互助": "Peer learning",
+  "字段为空或超出长度限制。": "A field is empty or too long.",
+  "每种需求最多选择 20 个知识点。": "Select up to 20 topics per learning or teaching preference.",
+  "请至少选择一个愿意讲解或希望学习的知识点。": "Select at least one topic to teach or learn.",
+  "当前没有相符的课程、知识点、语言或可用时段。": "No compatible course topic, language or availability was found.",
+  "请选择匹配理由中列出的知识点。": "Choose a topic listed in the match reasons.",
+  "这个知识点已有待处理或进行中的邀请。": "An invitation for this topic is already pending or active.",
+  "不能执行这个状态变更。": "This status change is not allowed.",
+  "无权操作这次互助。": "You cannot modify this session.",
+  "邀请不存在。": "Invitation not found.",
+  "互助不存在。": "Session not found.",
+  "无权查看或发送这次交流。": "You cannot read or message this session.",
+  "双方确认后才能交流；已结束的交流只读。": "Messages require acceptance. Ended sessions are read-only.",
+  "这次交流已达到 200 条消息上限，请结束后重新发起。": "This session has reached 200 messages. Complete it before starting another.",
+  "互助服务暂时不可用，未覆盖已有记录。": "The peer service is unavailable. Existing records were not overwritten.",
+  "请先载入演示搭档。": "Load demo partners first.",
+  "找同学互助": "Find a study partner"
 }

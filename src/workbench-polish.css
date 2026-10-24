@@ -158,3 +158,22 @@
 .campus-app .student-coursework-list {margin:0;}
 .student-assignment-card small {display:block;margin-top:10px;color:#6b7280;}
 @media(max-width:650px){.student-content-tabs>button {flex:1;justify-content:center;padding:12px 8px;}.student-week-group>summary {padding:14px 12px;gap:8px;}.student-week-group>.cp-student-materials {padding:10px;}}
+
+.cp-peer-scope {background:#edf3fb;border:1px solid #dce7f5;border-radius:10px;padding:14px 18px;font-size:12px;line-height:1.7;margin-bottom:20px;}
+.cp-peer-scope>div {display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+.cp-peer-scope label {display:flex;align-items:center;gap:8px;}.cp-peer-scope select {padding:7px;border:1px solid #d2d9e5;background:white;border-radius:6px;}
+.cp-peer-layout {display:grid;grid-template-columns:350px minmax(0,1fr);gap:24px;align-items:start;}.cp-peer-layout>*,.cp-peer-results {min-width:0;}
+.cp-peer-profile {padding:22px;}.cp-peer-profile>small {color:#6b7280;line-height:1.6;}
+.cp-peer-topic-columns {display:grid;grid-template-columns:1fr 1fr;gap:12px;}.cp-peer-topic-columns fieldset {min-width:0;padding:0;border:0;}.cp-peer-topic-columns legend {font-size:12px;font-weight:600;margin-bottom:12px;}.cp-peer-topic-columns fieldset>div {max-height:240px;overflow:auto;display:grid;gap:12px;}.cp-peer-topic-columns label {display:flex;align-items:flex-start;gap:7px;font-size:12px;line-height:1.6;}.cp-peer-topic-columns input {flex-shrink:0;accent-color:#0071e3;margin-top:4px;}
+.cp-peer-match-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:14px;}.cp-peer-match {padding:22px;}.cp-peer-match>header {display:flex;gap:12px;align-items:center;margin-bottom:18px;}.cp-peer-avatar {background:#eaf1fb;color:#4a75ab;padding:12px;border-radius:10px;}.cp-peer-match small,.cp-peer-results>.cp-section-heading small {color:#798293;font-size:12px;}.cp-peer-reason {margin-top:18px;font-size:13px;}.cp-peer-reason>strong {font-size:12px;color:#59718d;}.cp-peer-reason>div {display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:12px;}.cp-peer-reason>div>span {min-width:0;overflow-wrap:anywhere;}.cp-peer-reason button {flex-shrink:0;font-size:11px;}
+.cp-peer-sessions {margin-top:30px;}.cp-peer-session {padding:20px;margin-top:12px;}.cp-peer-session>header {display:flex;justify-content:space-between;gap:12px;align-items:center;}.cp-peer-session p {font-size:12px;color:#6b7280;margin-top:6px;}.cp-peer-session .cp-form-actions {margin-top:16px;flex-wrap:wrap;}
+.cp-peer-conversation {padding:24px;margin-top:24px;}.cp-peer-conversation>header {display:flex;justify-content:space-between;align-items:center;}.cp-peer-conversation>p {margin:12px 0;}.cp-peer-conversation>small {color:#6b7280;font-size:11px;}.cp-peer-activity {background:#f4f7fb;padding:18px 18px 18px 36px;border-radius:8px;font-size:13px;line-height:1.9;}.cp-peer-messages {max-height:350px;overflow:auto;display:grid;gap:12px;margin:20px 0;}.cp-peer-messages article {background:#f1f3f7;padding:12px;border-radius:8px;max-width:90%;}.cp-peer-messages article.mine {background:#eaf2fe;margin-left:auto;}.cp-peer-messages p {white-space:pre-wrap;overflow-wrap:anywhere;}.cp-peer-messages small {color:#6b7280;font-size:11px;}.cp-peer-conversation form {display:grid;gap:12px;}.cp-peer-conversation label {display:grid;gap:8px;}.cp-peer-conversation textarea {width:100%;border:1px solid #d2d9e5;border-radius:8px;padding:10px;resize:vertical;}.cp-peer-conversation form>button {justify-self:end;}
+@media(max-width:1100px){.cp-peer-layout {grid-template-columns:minmax(0,1fr);}.cp-peer-topic-columns fieldset>div {max-height:180px;}}
+@media(max-width:760px){.campus-app[data-role=student] .cp-bottom-nav {grid-template-columns:repeat(5,minmax(0,1fr));}.cp-peer-profile,.cp-peer-match,.cp-peer-conversation {padding:16px;}.cp-peer-reason>div {align-items:flex-start;flex-wrap:wrap;}.cp-peer-scope {padding:12px;}}
+.campus-app .cp-peer-profile {gap:16px;}
+.campus-app .cp-peer-topic-columns label {display:flex;align-items:flex-start;gap:7px;}
+.campus-app .cp-peer-profile>.cp-check-label {display:flex;align-items:center;gap:8px;}
+.campus-app .cp-peer-scope label {display:flex;white-space:nowrap;align-items:center;}
+.campus-app .cp-peer-scope .cp-button {font-size:12px;}
+.campus-app .cp-peer-profile {display:grid;}
+.campus-app .cp-peer-topic-columns label,.campus-app .cp-peer-profile>.cp-check-label {flex-direction:row;}
