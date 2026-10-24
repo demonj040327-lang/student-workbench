@@ -30,7 +30,7 @@ npm install
 npm run dev -- --port 5175 --strictPort
 ```
 
-需要课堂录音与实时转写时，运行 `npm run dev:classroom`，或另外启动 `tools/start-local-speech.sh`。学生端顶部“课堂录音”打开面板；翻页和收起面板不会停止录音。
+需要课堂录音与实时转写时，运行 `npm run dev:classroom`，或另外启动 `tools/start-local-speech.sh`。学生端顶部“课堂录音”打开面板；电脑端默认共享视频／电脑音频，开始后选择视频标签页并勾选共享音频，现场上课可在音频设置中改用麦克风。翻页和收起面板不会停止录音。
 
 双击 `student-workbench.code-workspace` 可在 VS Code 编辑。服务绑定本机地址，手机布局可通过浏览器设备模式查看。
 

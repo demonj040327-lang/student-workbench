@@ -7,6 +7,7 @@ export type LectureRecording = {
   durationMs: number;
   status: 'recording' | 'saved' | 'interrupted';
   mimeType: string;
+  audioSource?: 'microphone' | 'display';
   transcript: string;
   originalTranscript: string;
   translation: string;

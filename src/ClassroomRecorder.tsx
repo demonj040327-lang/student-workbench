@@ -8,6 +8,8 @@ import { Alert } from './CampusUI';
 import { studyRequest, errorMessage } from './studyClient';
 import {
   beginClassroomCapture,
+  requestClassroomDisplay,
+  type ClassroomAudioSource,
   type ClassroomCapture,
 } from './classroomCapture';
 import {
@@ -56,6 +58,11 @@ export default function ClassroomRecorder({
     [tab, setTab] = useState<'transcript' | 'translation' | 'explanation'>(
       'transcript',
     );
+  const [audioSource, setAudioSource] = useState<ClassroomAudioSource>(
+    typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+      ? 'display'
+      : 'microphone',
+  );
   const [transcribe, setTranscribe] = useState(true),
     [autoTranslate, setAutoTranslate] = useState(false),
     [interim, setInterim] = useState(''),
@@ -304,14 +311,23 @@ export default function ClassroomRecorder({
     if (!course) return;
     changePhase('starting');
     const previous = current.current;
-    if (previous) {
-      try {
-        await saveRecording(previous, demo);
-      } catch (e) {
-        setError(errorMessage(e));
-        changePhase('idle');
+    let displayStream: MediaStream | undefined;
+    try {
+      // Request sharing while the start click still has transient activation.
+      if (audioSource === 'display')
+        displayStream = await requestClassroomDisplay();
+      if (disposed.current) {
+        displayStream?.getTracks().forEach((track) => track.stop());
         return;
       }
+      if (previous) await saveRecording(previous, demo);
+    } catch (e) {
+      displayStream?.getTracks().forEach((track) => track.stop());
+      if (!disposed.current) {
+        setError(errorMessage(e));
+        changePhase('idle');
+      }
+      return;
     }
     setError('');
     setWarning('');
@@ -333,6 +349,7 @@ export default function ClassroomRecorder({
       durationMs: 0,
       status: 'recording',
       mimeType: '',
+      audioSource,
       transcript: '',
       originalTranscript: '',
       translation: '',
@@ -345,19 +362,23 @@ export default function ClassroomRecorder({
     changePhase('starting');
     setTab('transcript');
     try {
-      const result = await beginClassroomCapture(transcribe, {
-        onText: (text, pending) => receiveText(id, text, pending),
-        onChunk: (blob) => storeChunk(id, blob),
-        onWarning: (message) => {
-          if (!disposed.current) {
-            setWarning(message);
-            update((r) => ({ ...r, warning: message }));
-          }
+      const result = await beginClassroomCapture(
+        transcribe,
+        {
+          onText: (text, pending) => receiveText(id, text, pending),
+          onChunk: (blob) => storeChunk(id, blob),
+          onWarning: (message) => {
+            if (!disposed.current) {
+              setWarning(message);
+              update((r) => ({ ...r, warning: message }));
+            }
+          },
+          onDeviceEnded: () => {
+            void stop();
+          },
         },
-        onDeviceEnded: () => {
-          void stop();
-        },
-      });
+        displayStream,
+      );
       if (disposed.current) {
         result.capture.abort();
         return;
@@ -766,6 +787,60 @@ export default function ClassroomRecorder({
                   />
                 </label>
               )}
+              {!active ? (
+                <details className="classroom-source-options">
+                  <summary>
+                    {audioSource === 'display'
+                      ? tr('视频／电脑声音', 'Video / computer audio')
+                      : tr('麦克风', 'Microphone')}{' '}
+                    · {tr('音频设置', 'Audio settings')}
+                  </summary>
+                  <label>
+                    {tr('音频来源', 'Audio source')}
+                    <select
+                      value={audioSource}
+                      onChange={(event) =>
+                        setAudioSource(
+                          event.target.value as ClassroomAudioSource,
+                        )
+                      }
+                    >
+                      <option
+                        value="display"
+                        disabled={!navigator.mediaDevices?.getDisplayMedia}
+                      >
+                        {tr(
+                          '视频／系统音频 · 录播',
+                          'Video / system audio · Recorded lecture',
+                        )}
+                      </option>
+                      <option value="microphone">
+                        {tr(
+                          '麦克风 · 现场课堂',
+                          'Microphone · In-person class',
+                        )}
+                      </option>
+                    </select>
+                  </label>
+                </details>
+              ) : (
+                <p className="classroom-hint">
+                  {record?.audioSource === 'display'
+                    ? tr(
+                        '正在采集视频／电脑声音',
+                        'Capturing video / computer audio',
+                      )
+                    : tr('正在采集麦克风声音', 'Capturing microphone audio')}
+                </p>
+              )}
+              {!active && audioSource === 'display' && (
+                <p className="classroom-hint">
+                  {tr(
+                    '开始后选择播放视频的浏览器标签页，并勾选“分享标签页音频”。也可选系统提供的带音频窗口或屏幕；只保存声音，不保存画面。建议使用电脑端 Chrome 或 Edge。',
+                    'After starting, select the browser tab playing your video and enable “Share tab audio”. Audio-enabled windows or screens can also work when supported. Only sound is saved, not video. Use desktop Chrome or Edge.',
+                  )}
+                </p>
+              )}
               <div
                 className={`classroom-capture ${phase === 'recording' ? 'active' : ''}`}
               >
@@ -780,8 +855,8 @@ export default function ClassroomRecorder({
                   <small role="status">
                     {phase === 'starting'
                       ? tr(
-                          '正在连接与请求麦克风…',
-                          'Connecting and requesting microphone…',
+                          '正在连接与请求音频…',
+                          'Connecting and requesting audio…',
                         )
                       : phase === 'stopping'
                         ? tr(

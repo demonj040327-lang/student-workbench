@@ -568,5 +568,9 @@
   "课堂文字任务无效。": "Invalid classroom text task.",
   "请先允许将课堂文字发送至你的模型服务。": "Allow classroom text to be sent to your model provider first.",
   "请先检查并确认译文。": "Review and confirm the translation first.",
-  "翻译语言无效。": "Invalid translation language."
+  "翻译语言无效。": "Invalid translation language.",
+  "当前浏览器不支持共享音频，请使用电脑端 Chrome 或 Edge。": "Audio sharing is unavailable in this browser. Use desktop Chrome or Edge.",
+  "没有共享到音频。请重新选择播放视频的浏览器标签页，并勾选“分享标签页音频”；共享窗口或屏幕是否带声音取决于浏览器与系统。": "No audio was shared. Select the tab playing your video and enable “Share tab audio”. Window and screen audio depend on your browser and operating system.",
+  "音频共享已取消或未获允许，请重新选择并允许共享音频。": "Audio sharing was cancelled or denied. Select your audio source and allow sharing to retry.",
+  "音频共享已结束，请重新选择视频音频来源。": "Audio sharing ended. Select the video audio source again."
 }
