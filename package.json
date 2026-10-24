@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build && node tools/copy-docs.mjs",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "dev:classroom": "node tools/dev-with-speech.mjs"
   },
   "dependencies": {
+    "@fix-webm-duration/fix": "1.0.1",
     "katex": "0.19.0",
     "pdfjs-dist": "^6.4.299",
     "react": "19.3.0",
