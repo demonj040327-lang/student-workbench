@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode, type FormEvent } from 'react';
 import { useI18n } from './i18n';
-import { errorMessage } from './studyClient';
-import type { StudyUnit } from './studyTypes';
+import { errorMessage, sourcePayload, studyRequest, uid } from './studyClient';
+import type { StudyDocument, StudyUnit } from './studyTypes';
 import type { CampusCourse, CampusMaterial, PersonalApi, StudentProgress } from './campusStore';
 import type { Assignment } from './data';
 import Icon from './CampusIcons';
@@ -58,6 +58,24 @@ export default function CampusTeacher({
   const [editor, setEditor] = useState<CampusMaterial | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  async function saveSourceDraft() {
+    const file = selectedFile;
+    if (!file || !title.trim()) return;
+    if (!/\.(pdf|pptx|docx|txt|md)$/i.test(file.name)) { setError('请上传 PDF、PPTX、DOCX、TXT 或 Markdown。'); return; }
+    if (file.size > 25 * 1024 * 1024) { setError('上传文件不能超过 25 MB。'); return; }
+    setBusy('upload'); setError('');
+    try {
+      const id = uid();
+      const controller = new AbortController();
+      const payload = await sourcePayload({ id, courseId: course.id, name: file.name, type: file.type, blob: file }, controller.signal);
+      const document = await studyRequest<StudyDocument>('parse', { ...payload, mode: 'local' }, controller.signal);
+      document.units = [];
+      await onSave({ id, courseId: course.id, title: title.trim(), week, name: file.name, status: 'draft', blob: file, document, updatedAt: new Date().toISOString() });
+      setSelectedFile(null); setActiveMaterial(null); setTitle('');
+      if (fileRef.current) fileRef.current.value = '';
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setBusy(null); }
+  }
   function upload(file:File,action:'guide'|'questions') {
     if(!api&&!hostConfigured){onConnect();return;}
     if(!/\.(pdf|pptx|docx|txt|md)$/i.test(file.name)){setError('请上传 PDF、PPTX、DOCX、TXT 或 Markdown。');return;}
@@ -119,6 +137,7 @@ export default function CampusTeacher({
             <p>{t('文件先保存为草稿，生成内容经你确认后再发布。')}</p>
           </div>
           <div className="cp-form-actions">
+            <button className="cp-button" disabled={!!busy || !title.trim() || !selectedFile} onClick={() => void saveSourceDraft()}>{t('保存原文草稿')}</button>
             <button className="cp-button" disabled={!!busy || !title.trim() || (!selectedFile && !activeMaterial)} onClick={() => { if(activeMaterial) void generate({...activeMaterial,title:title.trim(),week}, 'guide'); else if(selectedFile) void upload(selectedFile,'guide'); }}>{t('AI 生成草稿')}</button>
             <button className="cp-button primary" disabled={!!busy || !title.trim() || (!selectedFile && !activeMaterial)} onClick={() => { if(activeMaterial) void generate({...activeMaterial,title:title.trim(),week}, 'questions'); else if(selectedFile) void upload(selectedFile,'questions'); }}>{t('AI 生成题目')}</button>
           </div>

@@ -235,7 +235,7 @@ test('Qwen options stay server side and incomplete model output is rejected', as
 test('student AI requires a personal key and never falls back to teacher credentials', async () => {
   const env={ELM_API_KEY:'teacher-key-fixture',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'teacher-model',ELM_CREDENTIAL_CONFIG:'/unused-fixture'};
   const doc=await parseDocument(textPayload);
-  await assert.rejects(askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student'},{env}),/自己的 ELM/);
+  await assert.rejects(askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student'},{env}),/自己的 API/);
   assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'bad\nkey',model:'fixture'}},env),/格式/);
   assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'fixture',model:'bad model'}},env),/格式/);
   assert.equal(personalModelEnv({credentialScope:'teacher'},env),env);
@@ -258,6 +258,31 @@ test('student AI requires a personal key and never falls back to teacher credent
     const local=await askDocument({document:doc,question:'consent',mode:'local',credentialScope:'student'},{env});
     assert.equal(local.mode,'local');
   }finally{globalThis.fetch=previous;}
+});
+
+test('student DeepSeek key is sent only to the fixed DeepSeek endpoint', async () => {
+  const env={ELM_API_KEY:'teacher-key-fixture',ELM_BASE_URL:'https://elm.edina.ac.uk/api/v1',ELM_MODEL:'teacher-model'};
+  const doc=await parseDocument(textPayload);
+  const payload={document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student',
+    personalApi:{provider:'deepseek',key:'student-deepseek-fixture',model:'deepseek-flash',baseUrl:'https://ignored.invalid'},language:'en'};
+  assert.throws(()=>personalModelEnv({...payload,personalApi:{...payload.personalApi,provider:'unknown'}},env),/提供方/);
+  assert.throws(()=>personalModelEnv({...payload,personalApi:{...payload.personalApi,model:'teacher-model'}},env),/DeepSeek 模型/);
+  assert.throws(()=>personalModelEnv({...payload,credentialScope:'teacher'},env),/教学 API/);
+  const previous=globalThis.fetch;
+  try {
+    globalThis.fetch=async(url,options)=>{
+      assert.equal(url,'https://api.deepseek.com/chat/completions');
+      assert.equal(options.headers.Authorization,'Bearer student-deepseek-fixture');
+      const body=JSON.parse(options.body);
+      assert.equal(body.model,'deepseek-flash');
+      assert.deepEqual(body.thinking,{type:'disabled'});
+      return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'Consent is voluntary. [p. 1]'}}]}));
+    };
+    const result=await askDocument(payload,{env});
+    assert.equal(result.grounded,true);
+    assert(!JSON.stringify(result).includes('student-deepseek-fixture'));
+    assert.equal(env.ELM_API_KEY,'teacher-key-fixture');
+  } finally {globalThis.fetch=previous;}
 });
 
 test('teacher guidance generation reuses a parsed document, validates citations and language', async () => {

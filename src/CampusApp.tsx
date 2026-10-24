@@ -394,7 +394,7 @@ export default function CampusApp({
             <Icon name="key" size={17} />
             <div>
               <strong>
-                {t(role === 'student' ? '我的 ELM API' : '教学 ELM API')}
+                {t(role === 'student' ? '我的 AI API' : '教学 ELM API')}
               </strong>
               <small>
                 {t(
@@ -1069,7 +1069,7 @@ export default function CampusApp({
       {taskPreview&&<CampusDialog title={t('学生视角预览')} wide onClose={()=>setTaskPreview(null)}><p className="cp-info">{t('预览中的答题与进度不会写入学生记录；AI 问答不使用学生额度。')}</p><CampusLearning material={taskPreview} progress={taskPreviewProgress} onProgress={setTaskPreviewProgress} api={null} onConnect={()=>setNotice('预览仅展示问答入口，实际问答由学生使用自己的 API。')} onBack={()=>setTaskPreview(null)}/></CampusDialog>}
       {dialog === 'api' && (
         <CampusDialog
-          title={t(role === 'student' ? '连接我的 ELM API' : '教学 ELM API')}
+          title={t(role === 'student' ? '连接我的 AI API' : '教学 ELM API')}
           onClose={() => setDialog(null)}
         >
           <ApiSettings
@@ -1503,13 +1503,14 @@ function ApiSettings({
 }) {
   const { t } = useI18n();
   const [key, setKey] = useState(value?.key || '');
+  const [provider, setProvider] = useState<'elm' | 'deepseek'>(value?.provider === 'deepseek' ? 'deepseek' : 'elm');
   const [modelName, setModel] = useState(value?.model || model || '');
   return (
     <form
       className="cp-form"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ key: key.trim(), model: modelName.trim() });
+        onSave({ key: key.trim(), model: modelName.trim(), provider: role === 'student' ? provider : 'elm' });
       }}
     >
       <div className="cp-api-explainer">
@@ -1517,17 +1518,36 @@ function ApiSettings({
         <p>
           {t(
             role === 'student'
-              ? '课件由教师提供。AI 问答使用你自己的 ELM 额度。'
+              ? provider === 'deepseek'
+                ? '课件由教师提供。AI 问答使用你自己的 DeepSeek API 额度。'
+                : '课件由教师提供。AI 问答使用你自己的 ELM 额度。'
               : '用于从课件生成学习指导与课后练习。',
           )}
         </p>
       </div>
+      {role === 'student' && (
+        <label>
+          {t('服务提供方')}
+          <select
+            value={provider}
+            onChange={(e) => {
+              const next = e.target.value === 'deepseek' ? 'deepseek' : 'elm';
+              setProvider(next);
+              setKey('');
+              setModel(next === 'deepseek' ? 'deepseek-flash' : model || '');
+            }}
+          >
+            <option value="elm">{t('ELM（爱丁堡大学）')}</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </label>
+      )}
       <label>
-        {t('ELM API Key')}
+        {t(provider === 'deepseek' && role === 'student' ? 'DeepSeek API Key' : 'ELM API Key')}
         <input
           type="password"
           autoComplete="off"
-          name="personal-elm-key"
+          name={provider === 'deepseek' && role === 'student' ? 'personal-deepseek-key' : 'personal-elm-key'}
           required
           maxLength={4096}
           value={key}
@@ -1542,24 +1562,26 @@ function ApiSettings({
           maxLength={160}
           value={modelName}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="Qwen/Qwen3.5-397B-A17B-FP8"
+          placeholder={provider === 'deepseek' && role === 'student' ? 'deepseek-flash' : 'Qwen/Qwen3.5-397B-A17B-FP8'}
         />
       </label>
       <p className="cp-fineprint">
         {t(
-          '密钥仅保留在当前页面内存中，刷新后清除。请求由本机后端转发至学校 ELM；不会写入浏览器存储或课件数据。',
+          provider === 'deepseek' && role === 'student'
+            ? '密钥仅保留在当前页面内存中，刷新后清除。提问时本机后端会把问题和当前课件的相关文字片段发送至 DeepSeek；密钥不会写入浏览器存储或课件数据。'
+            : '密钥仅保留在当前页面内存中，刷新后清除。请求由本机后端转发至学校 ELM；不会写入浏览器存储或课件数据。',
         )}
       </p>
       <p className="cp-fineprint">
         {t('保存配置不代表密钥已通过验证；实际调用失败会显示原因。')}
       </p>
       <a
-        href="https://elm.edina.ac.uk/"
+        href={provider === 'deepseek' && role === 'student' ? 'https://platform.deepseek.com/api_keys' : 'https://elm.edina.ac.uk/'}
         target="_blank"
         rel="noreferrer"
         className="cp-link"
       >
-        {t('打开 ELM 获取个人 API Key')} ↗
+        {t(provider === 'deepseek' && role === 'student' ? '打开 DeepSeek 创建 API Key' : '打开 ELM 获取个人 API Key')} ↗
       </a>
       <div className="cp-form-actions">
         <button className="cp-button primary">{t('用于本次打开')}</button>

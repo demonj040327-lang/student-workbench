@@ -41,7 +41,7 @@ export type StudentProgress = {
   dismissed: string[];
   submitted?: Record<string,string>;
 };
-export type PersonalApi = { key: string; model: string };
+export type PersonalApi = { key: string; model: string; provider?: 'elm' | 'deepseek' };
 export const emptyProgress = (): StudentProgress => ({
   steps: {},
   units: {},

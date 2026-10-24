@@ -59,7 +59,7 @@ async function config(env = process.env) {
   // an existing school key to a different host/path due to a mistaken override.
   if (credential && env.ELM_BASE_URL && env.ELM_BASE_URL.replace(/\/$/, '') !== credential.baseUrl.replace(/\/$/, '')) return {provider: 'ELM', model, configured: false};
   const apiStyle = elm ? env.ELM_API_STYLE || 'chat' : env.API_STYLE || 'responses';
-  return {provider: elm ? 'ELM' : 'OpenAI', key: key || credential?.key, model, baseUrl, apiStyle,
+  return {provider: env.PERSONAL_API_PROVIDER === 'DeepSeek' ? 'DeepSeek' : elm ? 'ELM' : 'OpenAI', key: key || credential?.key, model, baseUrl, apiStyle,
     keyHeader: elm ? env.ELM_API_KEY_HEADER || 'Authorization' : 'Authorization',
     configured: !!((key || credential?.key) && model && baseUrl)};
 }
@@ -74,14 +74,23 @@ export function personalModelEnv(payload, env = process.env) {
   if (!['student', 'teacher'].includes(payload.credentialScope)) return env;
   const api = payload.personalApi;
   if (!api && payload.credentialScope === 'teacher') return env;
-  if (!api || typeof api.key !== 'string' || !api.key.trim()) throw new StudyError('请先连接你自己的 ELM API Key。', 401);
+  if (!api || typeof api.key !== 'string' || !api.key.trim()) throw new StudyError('请先连接你自己的 API Key。', 401);
   const key = api.key.trim();
   if (key.length > 4096 || /[\s\x00-\x1f\x7f]/.test(key)) throw new StudyError('API Key 格式无效。');
   const model = string(api.model, 160, '模型名称');
   if (!/^[a-zA-Z0-9._/:-]+$/.test(model)) throw new StudyError('模型名称格式无效。');
+  const provider = api.provider || 'elm';
+  if (provider !== 'elm' && provider !== 'deepseek') throw new StudyError('API 服务提供方无效。');
+  if (provider === 'deepseek') {
+    if (payload.credentialScope !== 'student') throw new StudyError('教学 API 目前仅支持 ELM。');
+    if (!['deepseek-flash', 'deepseek-v4-pro'].includes(model)) throw new StudyError('DeepSeek 模型名称无效。');
+    return {...env, ELM_API_KEY: key, ELM_CREDENTIAL_CONFIG: '', ELM_MODEL: model,
+      ELM_BASE_URL: 'https://api.deepseek.com', ELM_API_STYLE: 'chat',
+      ELM_API_KEY_HEADER: 'Authorization', ELM_JSON_MODE: 'json_object', PERSONAL_API_PROVIDER: 'DeepSeek'};
+  }
   return {...env, ELM_API_KEY: key, ELM_CREDENTIAL_CONFIG: '', ELM_MODEL: model,
     ELM_BASE_URL: env.ELM_BASE_URL || 'https://elm.edina.ac.uk/api/v1',
-    ELM_API_STYLE: 'chat', ELM_API_KEY_HEADER: 'Authorization'};
+    ELM_API_STYLE: 'chat', ELM_API_KEY_HEADER: 'Authorization', PERSONAL_API_PROVIDER: 'ELM'};
 }
 function excerpts(text) {
   const lines = text.split(/\n|(?<=[.!?。！？])\s+/u).map(line => line.trim()).filter(line => line.length >= 14 && line.length <= 700);
@@ -261,8 +270,9 @@ async function callModel(messages, env, schema) {
   const url = base.href.replace(/\/$/, '') + (cfg.apiStyle === 'responses' ? '/responses' : '/chat/completions');
   const limit = Number(schema ? env.STUDY_PLAN_MAX_TOKENS || 7000 : env.STUDY_ANSWER_MAX_TOKENS || 2200);
   if (!Number.isInteger(limit) || limit < 128 || limit > 16000) throw new StudyError('模型输出长度配置无效。', 503);
-  const thinking = cfg.provider === 'ELM' && /^Qwen\//.test(cfg.model) && ['true', 'false'].includes(env.ELM_ENABLE_THINKING)
-    ? {chat_template_kwargs: {enable_thinking: env.ELM_ENABLE_THINKING === 'true'}} : {};
+  const thinking = cfg.provider === 'DeepSeek' ? {thinking: {type: 'disabled'}}
+    : cfg.provider === 'ELM' && /^Qwen\//.test(cfg.model) && ['true', 'false'].includes(env.ELM_ENABLE_THINKING)
+      ? {chat_template_kwargs: {enable_thinking: env.ELM_ENABLE_THINKING === 'true'}} : {};
   const format = schema ? cfg.provider === 'OpenAI'
     ? {response_format: {type: 'json_schema', json_schema: {name: 'study_plan', strict: true, schema}}}
     : env.ELM_JSON_MODE === 'json_object' ? {response_format: {type: 'json_object'}} : {} : {};
@@ -273,7 +283,7 @@ async function callModel(messages, env, schema) {
   try { response = await fetch(url, {method: 'POST', headers: providerHeaders(cfg), body: JSON.stringify(body), signal: AbortSignal.timeout(timeout), redirect: 'error'}); }
   catch (error) {
     if (error instanceof StudyError) throw error;
-    throw new StudyError('模型请求失败或超时。请核对学校接口、网络和模型配置；本次没有生成 AI 答案。', 502);
+    throw new StudyError('模型请求失败或超时。请核对接口、网络和模型配置；本次没有生成 AI 答案。', 502);
   }
   if (!response.ok) throw new StudyError(`模型服务返回 ${response.status}。请核对接口权限、模型名称或额度；本次没有生成 AI 答案。`, 502);
   const responseChunks = [];
@@ -324,7 +334,7 @@ async function aiUnits(document, env, language = 'zh', target = 'all') {
   ], env, schema);
   let parsed;
   try { parsed = JSON.parse(answer.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); }
-  catch { throw new StudyError('ELM 没有返回有效学习计划结构，请重试或切换本地阅读。', 502); }
+  catch { throw new StudyError('模型没有返回有效学习计划结构，请重试或切换本地阅读。', 502); }
   const valid = new Set(document.pages.map(page => page.page));
   const covered = new Set();
   if (!parsed || !Array.isArray(parsed.units) || parsed.units.length < 1 || parsed.units.length > 5) throw new StudyError('模型学习计划必须返回含 1–5 个模块的 units 数组，请重新生成；原文件与草稿仍保留。', 502);

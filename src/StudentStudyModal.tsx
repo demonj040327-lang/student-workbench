@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import CampusLearning from './CampusLearning';
 import type { CampusMaterial, PersonalApi, StudentProgress } from './campusStore';
 
@@ -44,6 +44,24 @@ export default function StudentStudyModal({
     });
   }
 
+  function keepFocusInside(event: KeyboardEvent<HTMLDialogElement>) {
+    if (event.key !== 'Tab' || apiDialogOpen) return;
+    const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === event.currentTarget)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || active === event.currentTarget)) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <dialog
       ref={ref}
@@ -56,6 +74,7 @@ export default function StudentStudyModal({
       onClick={(event) => {
         if (event.target === event.currentTarget) close();
       }}
+      onKeyDown={keepFocusInside}
     >
       <CampusLearning
         modal

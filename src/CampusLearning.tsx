@@ -41,7 +41,7 @@ export default function CampusLearning({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<
-    { question: string; result: StudyAnswer }[]
+    { question: string; result: StudyAnswer; provider?: 'elm' | 'deepseek' }[]
   >([]);
   const abort = useRef<AbortController | null>(null);
   const requestInFlight = useRef(false);
@@ -100,7 +100,7 @@ export default function CampusLearning({
         controller.signal,
       );
       if (!controller.signal.aborted) {
-        setHistory((h) => [...h, { question: text, result }]);
+        setHistory((h) => [...h, { question: text, result, provider: searchOnly ? undefined : api?.provider || 'elm' }]);
         setQuestion('');
       }
     } catch (e) {
@@ -417,7 +417,7 @@ export default function CampusLearning({
                     <span className="cp-eyebrow">
                       {t(
                         item.result.mode === 'ai'
-                          ? 'ELM · 课件讲解'
+                          ? item.provider === 'deepseek' ? 'DeepSeek · 课件讲解' : 'ELM · 课件讲解'
                           : '原文检索结果',
                       )}
                     </span>
@@ -479,7 +479,9 @@ export default function CampusLearning({
             </form>
             <p className="cp-fineprint">
               {t(
-                'AI 问答使用你自己的 API。发送问题时，仅向 ELM 提交当前课件的相关文字片段。',
+                api?.provider === 'deepseek'
+                  ? 'AI 问答使用你自己的 API。发送问题时，仅向 DeepSeek 提交当前课件的相关文字片段。'
+                  : 'AI 问答使用你自己的 API。发送问题时，仅向 ELM 提交当前课件的相关文字片段。',
               )}
             </p>
           </section>

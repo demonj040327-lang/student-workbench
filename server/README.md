@@ -39,7 +39,11 @@
 
 响应含 `mode`、`answer`、`sources: [{page,title,excerpt}]` 和 `grounded`。`grounded: true` 表示有当前文件来源并通过引用格式检查，不能视为自动事实核查。
 
-## ELM 配置
+## ELM 配置与学生个人 DeepSeek API
+
+学生可在页面的个人 API 设置中选择 DeepSeek，填入本人创建的 Key；默认模型 `deepseek-flash`，也支持 `deepseek-v4-pro`。学生个人 DeepSeek 请求固定发往 `https://api.deepseek.com/chat/completions`，不接受浏览器传入的接口地址；切换提供方会清空输入框中的 Key。Key 只在当前页面和单次请求内存中，刷新后清除，不写入 `.env.local`、课件或浏览器存储。只有用户发起 AI 提问或分析时，才会发送当前资料的相关文字片段至 DeepSeek。使用前应确认有权向该服务发送相关资料，并留意可能产生的 API 费用。模型名称和计费以 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start/pricing/) 为准。
+
+教师端仍使用 ELM 配置：
 
 在服务端 `.env.local` 或环境变量中提供（密钥绝不能加 `VITE_` 前缀）：
 
