@@ -1,3 +1,4 @@
+import {classroomProxy} from './server/classroom-proxy.mjs';
 import {defineConfig, loadEnv} from 'vite';
 import {createStudyMiddleware} from './server/study-api.mjs';
 import {createCampusMiddleware} from './server/campus-api.mjs';
@@ -7,8 +8,8 @@ export default defineConfig(({mode}) => {
   // Only VITE_ variables are normally exposed by Vite; API keys never use that prefix.
   const serverEnv = {...process.env, ...loadEnv(mode, process.cwd(), '')};
   return {
-    server: {host: '127.0.0.1'},
-    preview: {host: '127.0.0.1'},
+    server: {host: '127.0.0.1',proxy:classroomProxy()},
+    preview: {host: '127.0.0.1',proxy:classroomProxy()},
     plugins: [{name: 'local-study-api',
       configureServer(server) {server.middlewares.use(createStudyMiddleware({projectRoot: server.config.root, env: serverEnv}));},
       configurePreviewServer(server) {server.middlewares.use(createStudyMiddleware({projectRoot: server.config.root, env: serverEnv}));},},

@@ -1,0 +1,417 @@
+.campus-app.classroom-portal {
+  display: contents;
+}
+.campus-app .cp-recording-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dce3ec;
+  background: #fff;
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 7px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.cp-recording-launch.is-recording {
+  color: #a72b2b;
+  background: #fff4f3;
+  border-color: #efc9c6;
+}
+.cp-recording-launch i,
+.classroom-signal {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aeb7c3;
+  flex-shrink: 0;
+}
+.cp-recording-launch i,
+.classroom-capture.active .classroom-signal {
+  background: #d24439;
+  box-shadow: 0 0 0 4px #d2443915;
+}
+.classroom-recorder[hidden] {
+  display: none !important;
+}
+.campus-app .classroom-recorder {
+  --panel-width: clamp(390px, 34vw, 520px);
+  position: fixed;
+  top: 72px;
+  right: 0;
+  bottom: 0;
+  width: var(--panel-width);
+  z-index: 45;
+  background: #fff;
+  border-left: 1px solid #dce3ec;
+  box-shadow: -10px 0 25px #1c314b08;
+  display: flex;
+  flex-direction: column;
+  color: #202833;
+  text-align: left;
+  white-space: normal;
+  font-size: 13px;
+}
+.classroom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8edf3;
+  flex-shrink: 0;
+}
+.classroom-header h2 {
+  font-size: 19px;
+  margin-top: 4px;
+  letter-spacing: -0.4px;
+}
+.classroom-kicker {
+  font-size: 10px;
+  letter-spacing: 1.3px;
+  color: #718094;
+}
+.classroom-body {
+  padding: 20px 24px 32px;
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+}
+.campus-app .classroom-body label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.campus-app .classroom-body input,
+.campus-app .classroom-body select,
+.campus-app .classroom-body textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  font-size: 13px;
+  background: #fafbfd;
+  border: 1px solid #dbe3ed;
+  border-radius: 7px;
+  padding: 9px 10px;
+  color: #243041;
+}
+.classroom-capture {
+  padding: 16px;
+  background: #f4f7fb;
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+}
+.classroom-capture > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+.classroom-capture strong {
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.7px;
+}
+.classroom-capture small {
+  grid-column: 1/-1;
+  color: #6c7889;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.classroom-stop {
+  color: #a22d28 !important;
+  border-color: #ebc0bc !important;
+  background: #fff !important;
+}
+.campus-app .classroom-options {
+  display: grid;
+  gap: 10px;
+}
+.campus-app .classroom-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+.campus-app .classroom-options input {
+  width: 16px;
+  min-height: 0;
+  height: 16px;
+  accent-color: #0071e3;
+  flex-shrink: 0;
+}
+.classroom-privacy,
+.classroom-hint {
+  font-size: 11px !important;
+  line-height: 1.8 !important;
+  color: #718094 !important;
+}
+.classroom-warning {
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 11px 13px;
+  background: #fff8e9;
+  color: #88612c;
+  border-radius: 7px;
+}
+.classroom-history {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e7ecf2;
+  padding-top: 14px;
+}
+.classroom-history .cp-link {
+  justify-self: start;
+}
+.classroom-tabs {
+  display: flex;
+  padding: 3px;
+  border-radius: 8px;
+  background: #f0f3f8;
+  gap: 3px;
+}
+.classroom-tabs button {
+  flex: 1;
+  padding: 9px 7px;
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 6px;
+  color: #6c7889;
+}
+.classroom-tabs button.active {
+  background: #fff;
+  color: #165fac;
+  box-shadow: 0 1px 3px #21395812;
+}
+.classroom-body > section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.classroom-edit-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+.classroom-edit-heading small {
+  font-size: 10px;
+  color: #8b96a6;
+  max-width: 50%;
+  text-align: right;
+  line-height: 1.6;
+}
+.campus-app .classroom-body textarea {
+  min-height: 210px;
+  line-height: 1.85;
+  resize: vertical;
+  background: #fff;
+}
+.classroom-interim {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8b96a6;
+  font-style: italic;
+}
+.classroom-original {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #728094;
+}
+.classroom-original summary {
+  cursor: pointer;
+}
+.classroom-original p {
+  padding: 12px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.classroom-explanation {
+  font-size: 13px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f7f9fc;
+  padding: 16px;
+  border-radius: 8px;
+}
+.classroom-playback {
+  display: grid;
+  gap: 10px;
+}
+.classroom-playback audio {
+  width: 100%;
+  height: 40px;
+}
+.classroom-playback .cp-button {
+  justify-self: start;
+}
+.classroom-save {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #8b96a6;
+}
+.classroom-delete {
+  border-top: 1px solid #eef1f5;
+  padding-top: 12px;
+  font-size: 11px;
+  color: #919bad;
+}
+.classroom-delete summary {
+  cursor: pointer;
+}
+.classroom-delete p {
+  margin: 12px 0;
+  line-height: 1.7;
+}
+@media (min-width: 1101px) {
+  .campus-app.cp-recorder-open .cp-main,
+  .campus-app.cp-recorder-open.cp-reader-mode .cp-main {
+    padding-right: calc(clamp(390px, 34vw, 520px) + 24px);
+  }
+  .cp-recorder-open .student-reader .reader-grid {
+    grid-template-columns: minmax(150px, 180px) 12px minmax(0, 1fr);
+  }
+  .cp-recorder-open .student-reader .reader-grid > .cp-ask-layout,
+  .cp-recorder-open .student-reader .reader-divider-chat {
+    display: none;
+  }
+  .cp-recorder-open .student-reader .reader-grid > .cp-original,
+  .cp-recorder-open .student-reader .reader-grid > .cp-guide-layout,
+  .cp-recorder-open .student-reader .reader-grid > .cp-practice-layout {
+    grid-column: 3;
+  }
+  .cp-recorder-open .student-reader .reader-grid > .reader-outline {
+    grid-column: 1;
+  }
+}
+@media (min-width: 1101px) and (max-width: 1450px) {
+  .cp-recorder-open .student-reader .reader-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cp-recorder-open .student-reader .reader-grid > .reader-outline,
+  .cp-recorder-open .student-reader .reader-divider-outline {
+    display: none;
+  }
+  .cp-recorder-open .student-reader .reader-grid > .cp-original,
+  .cp-recorder-open .student-reader .reader-grid > .cp-guide-layout,
+  .cp-recorder-open .student-reader .reader-grid > .cp-practice-layout {
+    grid-column: 1;
+  }
+}
+@media (max-width: 1100px) {
+  .campus-app .classroom-recorder {
+    top: 72px;
+    bottom: 0;
+    width: min(520px, 100vw);
+    box-shadow: -12px 0 40px #172c4720;
+  }
+}
+@media (max-width: 760px) {
+  .campus-app .classroom-recorder {
+    top: auto;
+    bottom: calc(65px + env(safe-area-inset-bottom));
+    width: 100%;
+    height: 72dvh;
+    border: 1px solid #dce3ec;
+    border-radius: 14px 14px 0 0;
+  }
+  .classroom-header {
+    padding: 14px 18px;
+  }
+  .classroom-body {
+    padding: 16px 18px 24px;
+  }
+  .campus-app .cp-recording-launch {
+    padding: 6px;
+    min-width: 34px;
+    justify-content: center;
+    border: 0;
+  }
+  .cp-recording-launch > span {
+    display: none;
+  }
+  .cp-recording-launch > time {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .campus-app[data-role='student'] .cp-role-switch {
+    display: none;
+  }
+  .campus-app[data-role='student'] .cp-topbar-tools {
+    gap: 7px;
+    flex-shrink: 0;
+  }
+  .campus-app[data-role='student'] .cp-breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .campus-app[data-role='student'] .cp-breadcrumb > strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .campus-app[data-role='student'] .cp-topbar {
+    gap: 8px;
+  }
+  .campus-app .classroom-body input,
+  .campus-app .classroom-body select,
+  .campus-app .classroom-body textarea {
+    font-size: 16px;
+  }
+  .classroom-header h2 {
+    font-size: 17px;
+  }
+  .classroom-kicker {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .classroom-recorder:not([hidden]) {
+    animation: classroom-reveal 180ms ease-out;
+  }
+  @keyframes classroom-reveal {
+    from {
+      opacity: 0;
+      transform: translateX(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+.classroom-capture.active {
+  position: sticky;
+  top: -1px;
+  z-index: 3;
+}
+.classroom-explanation .material-answer-text {
+  white-space: normal;
+}
+
+.classroom-collapse {
+  font-size: 11px !important;
+  gap: 4px !important;
+  border: 0 !important;
+  padding: 6px 8px !important;
+  min-height: 30px !important;
+  background: transparent !important;
+}
+.classroom-collapse svg {
+  transform: rotate(90deg);
+}

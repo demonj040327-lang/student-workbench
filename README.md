@@ -19,7 +19,9 @@ TeachAthon 2026 本地原型：教师按课程上传并发布资料，学生查�
 
 ## 本地实时语音
 
-- [本地实时语音部署与测试](docs/本地实时语音部署与测试.md) · [实测结果](docs/实时语音实测结果.md)
+- [本地实时语音部署与测试](docs/本地实时语音部署与测试.md) · [实测结果](docs/实时语音实测结果.md)（底层语音服务）
+- [课堂录音与翻译使用说明](docs/课堂录音与翻译使用说明.md)（学生端顶部入口）
+
 
 ## 本地启动
 
@@ -27,6 +29,8 @@ TeachAthon 2026 本地原型：教师按课程上传并发布资料，学生查�
 npm install
 npm run dev -- --port 5175 --strictPort
 ```
+
+需要课堂录音与实时转写时，运行 `npm run dev:classroom`，或另外启动 `tools/start-local-speech.sh`。学生端顶部“课堂录音”打开面板；翻页和收起面板不会停止录音。
 
 双击 `student-workbench.code-workspace` 可在 VS Code 编辑。服务绑定本机地址，手机布局可通过浏览器设备模式查看。
 

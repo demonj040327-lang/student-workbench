@@ -1,3 +1,4 @@
+import ClassroomRecorder from './ClassroomRecorder';
 import StudentCourseContent from './StudentCourseContent';
 import StudentCourseworkPage from './StudentCourseworkPage';
 import CourseworkEditor from './CourseworkEditor';
@@ -92,6 +93,7 @@ export default function CampusApp({
   const [taskPreview,setTaskPreview]=useState<CampusMaterial|null>(null);
   const [taskPreviewProgress,setTaskPreviewProgress]=useState(emptyProgress);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [recorderExpanded,setRecorderExpanded]=useState(false);
   const [data, setData] = useState(() => loadCampusData(demo));
   const [progress, setProgress] = useState(() => loadCampusProgress(demo));
   const [materials, setMaterials] = useState<CampusMaterial[]>([]);
@@ -335,7 +337,7 @@ export default function CampusApp({
     );
   }
   return (
-    <div style={{'--active-course':currentCourse?.color||'#6682ad'} as React.CSSProperties} className={`campus-app ${(view==='study'||view==='coursework')&&role==='student'?'cp-reader-mode':''}`}>
+    <div data-role={role} style={{'--active-course':currentCourse?.color||'#6682ad'} as React.CSSProperties} className={`campus-app ${recorderExpanded?'cp-recorder-open':''} ${(view==='study'||view==='coursework')&&role==='student'?'cp-reader-mode':''}`}>
       <a className="skip-link" href="#campus-main">
         {t('跳到主要内容')}
       </a>
@@ -493,6 +495,7 @@ export default function CampusApp({
             </div>
 
             <LanguageSwitcher />
+            {role==='student'&&<ClassroomRecorder courses={viewCourses} courseId={currentCourse?.id||''} materialTitle={activeMaterial?.title} demo={demo} api={api.student} onConnect={()=>setDialog('api')} onExpanded={setRecorderExpanded}/>}
             <button
               className="cp-icon-button cp-top-api"
               onClick={() => setDialog('api')}
@@ -1406,8 +1409,8 @@ function ApiSettings({
           {t(
             role === 'student'
               ? provider === 'deepseek'
-                ? '课件由教师提供。AI 问答使用你自己的 DeepSeek API 额度。'
-                : '课件由教师提供。AI 问答使用你自己的 ELM 额度。'
+                ? '课件由教师提供。问答、课堂翻译与讲解使用你自己的 DeepSeek API 额度。'
+                : '课件由教师提供。问答、课堂翻译与讲解使用你自己的 ELM 额度。'
               : '用于从课件生成学习指导与课后练习。',
           )}
         </p>
@@ -1455,7 +1458,7 @@ function ApiSettings({
       <p className="cp-fineprint">
         {t(
           provider === 'deepseek' && role === 'student'
-            ? '密钥仅保留在当前页面内存中，刷新后清除。提问时本机后端会把问题和当前课件的相关文字片段发送至 DeepSeek；密钥不会写入浏览器存储或课件数据。'
+            ? '密钥仅保留在当前页面内存中，刷新后清除。问答时发送相关课件片段；课堂翻译与讲解时发送你选择处理的文字至 DeepSeek；密钥不会写入浏览器存储或课件数据。'
             : '密钥仅保留在当前页面内存中，刷新后清除。请求由本机后端转发至学校 ELM；不会写入浏览器存储或课件数据。',
         )}
       </p>
