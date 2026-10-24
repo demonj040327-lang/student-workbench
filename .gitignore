@@ -23,3 +23,6 @@ server/__pycache__/
 
 # Private local peer-learning profiles and messages
 /data/peer-learning/
+
+# Local Python launcher bytecode
+/tools/__pycache__/
