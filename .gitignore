@@ -4,9 +4,19 @@ dist/
 .env
 .env.*
 !.env.example
+!.ene.local
 public/course-materials/
 docs/qa/
 
 .backups/
 
 server/__pycache__/
+
+# Local SQLite database
+/data/*.db
+/data/*.db-journal
+/data/*.db-wal
+/data/*.db-shm
+
+# Private local course corpus and model outputs
+/data/local-demo-library/

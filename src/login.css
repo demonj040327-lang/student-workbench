@@ -1,0 +1,103 @@
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  background: #f4f6fa;
+  font-family: Arial, sans-serif;
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 480px;
+  padding: 42px;
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.07);
+  text-align: center;
+}
+
+.login-logo {
+  font-size: 36px;
+  color: #2563eb;
+}
+
+.login-panel h1 {
+  font-size: 27px;
+  margin: 12px 0 8px;
+}
+
+.login-panel h2 {
+  margin-top: 34px;
+  font-size: 22px;
+}
+
+.login-panel p {
+  color: #666;
+}
+
+.login-subtitle {
+  font-size: 14px;
+}
+
+.login-role-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.login-role-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 12px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #222;
+}
+
+.login-role-options button span {
+  font-size: 30px;
+}
+
+.login-role-options button small {
+  color: #666;
+  text-align: center;
+}
+
+.login-role-options button.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.login-submit {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.login-submit:hover {
+  background: #1d4ed8;
+}
+
+.login-footer {
+  margin-top: 24px;
+  font-size: 12px;
+}
+
+.login-language {display:flex;justify-content:flex-end;margin-bottom:24px;}
+.login-logo {display:inline-block;object-fit:contain;}
+.login-role-options button svg {color:#1d1d1f;}
+.login-panel h1 {letter-spacing:-1px;}

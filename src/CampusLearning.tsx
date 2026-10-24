@@ -45,7 +45,11 @@ export default function CampusLearning({
   >([]);
   const abort = useRef<AbortController | null>(null);
   const requestInFlight = useRef(false);
-  const [fileUrl, setFileUrl] = useState('');
+  const [fileUrl, setFileUrl] = useState(
+    material.document.originalUrl?.startsWith('/api/study/local-library/file/')
+      ? material.document.originalUrl
+      : '',
+  );
   const units = material.document.units;
   const unit = units[activeUnit] || units[0];
   const completed = units.filter((u) => progress.units[u.id]).length;
@@ -115,7 +119,7 @@ export default function CampusLearning({
       <header className="cp-page-heading">
         <div>
           <span className="cp-eyebrow">
-            {t('第 {week} 周', { week: material.week })} <span> / </span>{' '}
+            {material.weekUnconfirmed ? t('周次待确认') : t('第 {week} 周', { week: material.week })} <span> / </span>{' '}
             {t('课程学习')}
           </span>
           <h1>{t(material.title)}</h1>
