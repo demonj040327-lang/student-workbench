@@ -10,7 +10,7 @@ export function StudentFeedback({courses,materials,demo}:{courses:CampusCourse[]
  const {activity,error}=useCommunity(demo);const [course,setCourse]=useState('');
  const visible=materials.filter(m=>m.status==='published'&&courses.some(c=>c.id===m.courseId)&&(!course||m.courseId===course));
  return <>
-  <header className="cp-page-heading"><div><span className="cp-eyebrow">STUDENT ENGAGEMENT</span><h1>{t('学生反馈')}</h1><p>{tr('了解已发布课件的查看人数和选择题完成情况。','See views and practice completion for published materials.')}</p></div></header>
+  <header className="cp-page-heading"><div><h1>{t('学生反馈')}</h1><p>{tr('了解已发布课件的查看人数和选择题完成情况。','See views and practice completion for published materials.')}</p></div></header>
   <p className="cp-info">{tr('本机演示记录：按浏览器身份去重，不代表真实班级人数；切换到其他设备不会共享数据。','Local demo records: counts represent browser identities, not verified student accounts. Data is not shared across devices.')}</p>
   <label className="cp-community-filter">{t('选择课程')}<select value={course} onChange={e=>setCourse(e.target.value)}><option value="">{tr('全部课程','All courses')}</option>{courses.map(c=><option value={c.id} key={c.id}>{c.code} · {t(c.name)}</option>)}</select></label>
   {error&&<Alert>{tr('无法读取学习记录，请检查浏览器存储。','Unable to read activity. Check browser storage.')}</Alert>}
@@ -25,11 +25,11 @@ export function StudentFeedback({courses,materials,demo}:{courses:CampusCourse[]
   })}</div>{!visible.length&&<Empty title={tr('暂无已发布课件','No published materials yet')}/>}</>;
 }
 
-export function CourseDiscussion({courses,role,demo,initialFilter='all'}:{courses:CampusCourse[];role:CampusRole;demo:boolean;initialFilter?:string}) {
+export function CourseDiscussion({courses,role,demo,initialFilter='all',initialCourseId,initialTitle}:{courses:CampusCourse[];role:CampusRole;demo:boolean;initialFilter?:string;initialCourseId?:string;initialTitle?:string}) {
  const {t,language,locale}=useI18n();const tr=(zh:string,en:string)=>language==='en'?en:zh;
  const {discussions,error:loadError}=useCommunity(demo);
- const [course,setCourse]=useState(''),[questionCourse,setQuestionCourse]=useState(courses[0]?.id||'');
- const [title,setTitle]=useState(''),[body,setBody]=useState(''),[error,setError]=useState(''),[filter,setFilter]=useState(initialFilter);
+ const [course,setCourse]=useState(''),[questionCourse,setQuestionCourse]=useState(initialCourseId||courses[0]?.id||'');
+ const [title,setTitle]=useState(initialTitle||''),[body,setBody]=useState(''),[error,setError]=useState(''),[filter,setFilter]=useState(initialFilter);
  const [reply,setReply]=useState<Record<string,string>>({});
  const effectiveQuestionCourse=courses.some(c=>c.id===questionCourse)?questionCourse:(courses[0]?.id||'');
  const items=discussions.filter(d=>courses.some(c=>c.id===d.courseId)&&(!course||course===d.courseId)&&(filter==='all'||(filter==='open'?!d.replies.length:!!d.replies.length))).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
@@ -37,7 +37,7 @@ export function CourseDiscussion({courses,role,demo,initialFilter='all'}:{course
  function post(e:FormEvent){e.preventDefault();if(!title.trim()||!body.trim()||!courses.some(c=>c.id===effectiveQuestionCourse))return;try{changeCommunity(demo,d=>({...d,discussions:[...d.discussions,{id:crypto.randomUUID(),courseId:effectiveQuestionCourse,title:title.trim(),body:body.trim(),createdAt:new Date().toISOString(),replies:[]}]}));setTitle('');setBody('');setCourse(effectiveQuestionCourse);setFilter('all');setError('');}catch{setError(tr('问题未能保存，请重试。','Could not save the question. Try again.'));}}
  function respond(id:string){if(!reply[id]?.trim())return;try{changeCommunity(demo,d=>({...d,discussions:d.discussions.map(q=>q.id===id?{...q,replies:[...q.replies,{id:crypto.randomUUID(),body:reply[id].trim(),createdAt:new Date().toISOString()}]}:q)}));setReply(r=>({...r,[id]:''}));setError('');}catch{setError(tr('回复未能保存，请重试。','Could not save the reply. Try again.'));}}
  return <>
-  <header className="cp-page-heading"><div><span className="cp-eyebrow">COURSE DISCUSSIONS</span><h1>{t('课程讨论')}</h1><p>{role==='teacher'?tr('按课程查看学生的问题，并给出解答。','Review and answer student questions by course.'):tr('把不懂的地方留给老师，按课程交流。','Ask your teacher and discuss questions by course.')}</p></div></header>
+  <header className="cp-page-heading"><div><h1>{t('课程讨论')}</h1><p>{role==='teacher'?tr('按课程查看学生的问题，并给出解答。','Review and answer student questions by course.'):tr('把不懂的地方留给老师，按课程交流。','Ask your teacher and discuss questions by course.')}</p></div></header>
   <p className="cp-fineprint">{tr('本机演示讨论区：同一浏览器的学生与教师视角共享记录，刷新后保留；尚未接入跨设备账户和消息服务。','Local discussion demo: student and teacher views in this browser share saved records. Cross-device accounts and messaging are not connected yet.')}</p>
   {role==='student'&&<form className="cp-card cp-form cp-discussion-compose" onSubmit={post}><h2>{tr('向老师提问','Ask your teacher')}</h2><label>{t('归属课程')}<select required value={effectiveQuestionCourse} onChange={e=>setQuestionCourse(e.target.value)}>{courses.map(c=><option value={c.id} key={c.id}>{c.code} · {t(c.name)}</option>)}</select></label><label>{tr('问题标题','Question title')}<input required maxLength={150} value={title} onChange={e=>setTitle(e.target.value)}/></label><label>{tr('问题描述','Question details')}<textarea required rows={3} maxLength={5000} value={body} onChange={e=>setBody(e.target.value)} placeholder={tr('可以注明课件名称、页码和你卡住的地方。','Include the material title, page and what you find confusing.')}/></label><button className="cp-button primary" disabled={!courses.length||!title.trim()||!body.trim()}>{tr('发布问题','Post question')}</button></form>}
   {(error||loadError)&&<Alert>{error||tr('无法读取讨论记录。','Unable to read discussions.')}</Alert>}

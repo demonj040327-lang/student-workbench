@@ -336,7 +336,7 @@
   "课件文字过长，请拆分文件。": "The file contains too much text. Split it into chapters.",
   "ELM 辅导尚未配置。请在服务端设置 API key、接口地址和学校提供的模型名称。": "ELM is not configured. Configure the key, endpoint and university model on the server.",
   "请先明确允许把当前课件的相关文字片段发送至已配置的模型服务。": "Allow relevant text from this material to be shared with the configured model service first.",
-  "模型请求失败或超时。请核对学校接口、网络和模型配置；本次没有生成 AI 答案。": "The model request failed or timed out. Check the university endpoint, network and configuration. No AI answer was generated.",
+  "模型请求失败或超时。请核对接口、网络和模型配置；本次没有生成 AI 答案。": "The model request failed or timed out. Check the endpoint, network and configuration. No AI answer was generated.",
   "模型服务返回 {status}。请核对接口权限、模型名称或额度；本次没有生成 AI 答案。": "The model service returned {status}. Check permissions, model name or quota. No AI answer was generated.",
   "模型服务没有返回响应内容。": "The model service returned no response content.",
   "模型响应过长，请缩小学习范围。": "The model response was too long. Narrow the scope.",

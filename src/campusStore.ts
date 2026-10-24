@@ -16,6 +16,7 @@ export type CampusCourse = Course & {
 };
 export type CampusMaterial = {
   weekUnconfirmed?: boolean;
+  weekTopic?: string;
   kind?: 'lecture' | 'tutorial' | 'reference' | 'template';
   id: string;
   courseId: string;
@@ -41,7 +42,7 @@ export type StudentProgress = {
   dismissed: string[];
   submitted?: Record<string,string>;
 };
-export type PersonalApi = { key: string; model: string };
+export type PersonalApi = { key: string; model: string; provider?: 'elm' | 'deepseek' };
 export const emptyProgress = (): StudentProgress => ({
   steps: {},
   units: {},

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useI18n } from './i18n';
 import { studyRequest, errorMessage } from './studyClient';
 import StudyAnswerText from './StudyAnswerText';
@@ -11,6 +11,8 @@ import type {
 import Icon from './CampusIcons';
 import { Alert, Empty, Meter } from './CampusUI';
 
+const ContinuousCourseReader=lazy(()=>import('./ContinuousCourseReader'));
+
 type Props = {
   material: CampusMaterial;
   progress: StudentProgress;
@@ -18,6 +20,10 @@ type Props = {
   api: PersonalApi | null;
   onConnect: () => void;
   onBack: () => void;
+  modal?: boolean;
+  workspace?: boolean;
+  sourceOnly?: boolean;
+  onDiscuss?: (page:number)=>void;
 };
 export default function CampusLearning({
   material,
@@ -26,26 +32,59 @@ export default function CampusLearning({
   api,
   onConnect,
   onBack,
+  modal = false,
+  workspace = false,
+  sourceOnly = false,
+  onDiscuss,
 }: Props) {
   const { t } = useI18n();
+  const readerGrid=useRef<HTMLDivElement>(null);
+  const [panelWidths,setPanelWidths]=useState<{outline:number;chat:number}>(()=>{try{const value=JSON.parse(localStorage.getItem('workbench-reader-widths')||'{}');return {outline:Math.max(180,Math.min(420,Number(value.outline)||240)),chat:Math.max(280,Math.min(720,Number(value.chat)||400))};}catch{return {outline:240,chat:400};}});
+  const drag=useRef<{side:'outline'|'chat';x:number;outline:number;chat:number}|null>(null);
+  useEffect(()=>{try{localStorage.setItem('workbench-reader-widths',JSON.stringify(panelWidths));}catch{}},[panelWidths]);
+  function resizePanel(side:'outline'|'chat',value:number){const available=readerGrid.current?.clientWidth||1400;setPanelWidths(p=>({...p,[side]:Math.max(side==='outline'?180:280,Math.min(side==='outline'?420:720,available-(side==='outline'?p.chat:p.outline)-360,value))}));}
+  function divider(side:'outline'|'chat'){return <div className={`reader-divider reader-divider-${side}`} role="separator" title={t('拖动调整宽度，双击恢复默认；也支持左右方向键。')} aria-label={t(side==='outline'?'调整目录与笔记宽度':'调整问答区宽度')} aria-orientation="vertical" aria-valuemin={side==='outline'?180:280} aria-valuemax={side==='outline'?420:720} aria-valuenow={panelWidths[side]} tabIndex={0} onDoubleClick={()=>setPanelWidths({outline:240,chat:400})} onKeyDown={e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();resizePanel(side,panelWidths[side]+(e.key==='ArrowRight'?1:-1)*(side==='outline'?24:-24));}}} onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);drag.current={side,x:e.clientX,...panelWidths};}} onPointerMove={e=>{const start=drag.current;if(start?.side===side){resizePanel(side,start[side]+(e.clientX-start.x)*(side==='outline'?1:-1));}}} onPointerUp={e=>{drag.current=null;e.currentTarget.releasePointerCapture(e.pointerId);}} onPointerCancel={()=>{drag.current=null;}}><i/></div>;}
   const [tab, setTab] = useState<'guide' | 'practice' | 'ask' | 'source'>(
-    'guide',
+    modal||workspace ? 'source' : 'guide',
   );
   const [activeUnit, setActiveUnit] = useState(0);
-  const [sourcePage, setSourcePage] = useState(1);
+  const readingKey=`workbench-reading-${material.id}-${material.document.id}`;
+  const [sourcePage, setSourcePage] = useState(()=>{
+    let saved;try{saved=workspace?localStorage.getItem(readingKey):null;}catch{}
+    const requested=Number((workspace?new URLSearchParams(location.search).get('page'):null)||saved);
+    return material.document.pages.some(p=>p.page===requested)?requested:(material.document.pages[0]?.page??1);
+  });
+  const [readingSaved,setReadingSaved]=useState(false);
+  const [outline,setOutline]=useState<'pages'|'topics'>('pages');
+  const [noteError,setNoteError]=useState('');
+  const [notes,setNotes]=useState<Record<string,string>>(()=>{try{return workspace?JSON.parse(localStorage.getItem(readingKey+'-notes')||'{}'):{};}catch{return {};}});
+  useEffect(()=>{
+    if(!workspace)return;
+    try{localStorage.setItem(readingKey,String(sourcePage));const url=new URL(location.href);url.searchParams.set('page',String(sourcePage));window.history.replaceState(window.history.state,'',url);setReadingSaved(true);}catch{setReadingSaved(false);}
+  },[workspace,sourcePage,readingKey]);
+  function saveNote(value:string){const next={...notes,[sourcePage]:value};setNotes(next);try{localStorage.setItem(readingKey+'-notes',JSON.stringify(next));setNoteError('');}catch{setNoteError(t('笔记保存失败，请勿关闭页面。'));}}
+
+  const [pageError, setPageError] = useState('');
   const [question, setQuestion] = useState('');
   const [searchOnly, setSearchOnly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<
-    { question: string; result: StudyAnswer }[]
+    { question: string; result: StudyAnswer; provider?: 'elm' | 'deepseek' }[]
   >([]);
   const abort = useRef<AbortController | null>(null);
-  const [fileUrl, setFileUrl] = useState(material.document.originalUrl?.startsWith('/api/study/local-library/file/') ? material.document.originalUrl : '');
+  const requestInFlight = useRef(false);
+  const [fileUrl, setFileUrl] = useState(
+    material.document.originalUrl?.startsWith('/api/study/local-library/file/')
+      ? material.document.originalUrl
+      : '',
+  );
   const units = material.document.units;
   const unit = units[activeUnit] || units[0];
   const completed = units.filter((u) => progress.units[u.id]).length;
   const questions = units.flatMap((u) => u.questions);
+  const pages = material.document.pages;
+  const currentPageIndex = pages.findIndex((p) => p.page === sourcePage);
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => {
     if (!material.blob) return;
@@ -53,22 +92,37 @@ export default function CampusLearning({
     setFileUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [material.blob]);
-  const page =
-    material.document.pages.find((p) => p.page === sourcePage) ||
-    material.document.pages[0];
-  function openSource(page: number) {
-    setSourcePage(page);
-    setTab('source');
+  const page = pages[currentPageIndex];
+  function openSource(pageNumber: number) {
+    if (!pages.some((item) => item.page === pageNumber)) {
+      setPageError(t('未找到对应原文页。'));
+      return;
+    }
+    setPageError('');
+    setSourcePage(pageNumber);
+    const index=units.findIndex(u=>u.pages.includes(pageNumber));if(index>=0)setActiveUnit(index);
+    setTab('source');setOutline('pages');
   }
+  useEffect(()=>{
+    if(!workspace)return;
+    const key=(event:KeyboardEvent)=>{
+      const target=event.target as HTMLElement;
+      if(tab!=='source'||event.ctrlKey||event.altKey||event.metaKey||target.closest('input,textarea,select,dialog,[contenteditable=true],[role=separator]'))return;
+      const index=event.key==='ArrowLeft'?currentPageIndex-1:event.key==='ArrowRight'?currentPageIndex+1:-1;
+      if(index>=0&&index<pages.length){event.preventDefault();openSource(pages[index].page);}
+    };
+    window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  },[workspace,tab,currentPageIndex,pages]);
   async function ask(event: React.FormEvent) {
     event.preventDefault();
-    if (!question.trim() || busy) return;
+    if (!question.trim() || requestInFlight.current) return;
     if (!searchOnly && !api) {
       onConnect();
       return;
     }
     const controller = new AbortController();
     abort.current = controller;
+    requestInFlight.current = true;
     setBusy(true);
     setError('');
     const text = question.trim();
@@ -78,27 +132,30 @@ export default function CampusLearning({
         {
           document: material.document,
           question: text,
+          currentPage: sourcePage,
           mode: searchOnly ? 'local' : 'ai',
-          allowExternal: true,
+          allowExternal: !searchOnly,
           credentialScope: 'student',
           ...(!searchOnly ? { personalApi: api } : {}),
         },
         controller.signal,
       );
       if (!controller.signal.aborted) {
-        setHistory((h) => [...h, { question: text, result }]);
+        setHistory((h) => [...h, { question: text, result, provider: searchOnly ? undefined : api?.provider || 'elm' }]);
         setQuestion('');
       }
     } catch (e) {
       if (!controller.signal.aborted) setError(errorMessage(e));
     } finally {
+      requestInFlight.current = false;
+      if (abort.current === controller) abort.current = null;
       if (!controller.signal.aborted) setBusy(false);
     }
   }
   return (
-    <section className="cp-learning">
-      <button className="cp-back" onClick={onBack}>
-        ← {t('返回课程资料')}
+    <section className={`cp-learning ${modal ? 'student-study-learning' : workspace?'student-reader':''} ${sourceOnly?'cp-source-only':''}`}>
+      <button className="cp-back" onClick={onBack} autoFocus={modal}>
+        {modal ? t('关闭') : `← ${t('返回课程资料')}`}
       </button>
       <header className="cp-page-heading">
         <div>
@@ -110,7 +167,7 @@ export default function CampusLearning({
           <p>
             {material.name} ·{' '}
             {t('{count} 页资料', { count: material.document.pages.length })} ·{' '}
-            {material.example ? t('人工编写的演示内容') : t('教师已发布')}
+            {material.example ? t('本机导入演示资料') : t('教师已发布')}
           </p>
         </div>
         <div className="cp-learning-progress">
@@ -127,20 +184,21 @@ export default function CampusLearning({
           />
         </div>
       </header>
+      {workspace&&!sourceOnly&&<div className="reader-tools"><button className="cp-button" disabled={!units.some(u=>u.pages.includes(sourcePage))} onClick={()=>{setActiveUnit(units.findIndex(u=>u.pages.includes(sourcePage)));setTab('guide');setOutline('topics');}}>{t('本页相关讲解')}</button>{onDiscuss&&<button className="cp-button" onClick={()=>onDiscuss(sourcePage)}>{t('向老师提问')}</button>}<span>{t(readingSaved?'已记住阅读位置':'阅读位置未保存')}</span></div>}
       <nav className="cp-tabs" aria-label={t('课件学习导航')}>
         {(
           [
+            ...(modal||workspace ? [['source', '原文资料', 'file']] as const : []),
             ['guide', '分步指导', 'layers'],
             ['practice', '课后练习', 'check'],
-            ['ask', '课件问答', 'message'],
-            ['source', '原文资料', 'file'],
+            ...(!modal&&!workspace ? [['ask', '课件问答', 'message'], ['source', '原文资料', 'file']] as const : []),
           ] as const
-        ).map(([key, label, icon]) => (
+        ).filter(([key])=>!sourceOnly||key==='source').map(([key, label, icon]) => (
           <button
             key={key}
             className={tab === key ? 'active' : ''}
             aria-current={tab === key ? 'page' : undefined}
-            onClick={() => setTab(key)}
+            onClick={() => {setTab(key);if(key==='guide')setOutline('topics');if(key==='source')setOutline('pages');}}
           >
             <Icon name={icon} size={17} />
             {t(label)}
@@ -148,6 +206,10 @@ export default function CampusLearning({
           </button>
         ))}
       </nav>
+      <div ref={readerGrid} style={workspace?{'--reader-outline-width':`${panelWidths.outline}px`,'--reader-chat-width':`${panelWidths.chat}px`} as React.CSSProperties:undefined} className={modal ? 'student-study-layout' : workspace?'reader-grid':'cp-learning-body'}>
+      {workspace&&divider('outline')}{workspace&&divider('chat')}
+      {workspace&&<aside className="reader-outline"><nav className="cp-tabs" aria-label={t('课件目录')}><button className={outline==='pages'?'active':''} onClick={()=>setOutline('pages')}>{t('页面')}</button>{!sourceOnly&&<button className={outline==='topics'?'active':''} onClick={()=>setOutline('topics')}>{t('主题')}</button>}</nav><div className="reader-outline-items">{outline==='pages'?pages.map(p=><button className={sourcePage===p.page?'active':''} key={p.page} onClick={()=>openSource(p.page)}><small>{String(p.page).padStart(2,'0')}</small><span>{p.title||t('第 {page} 页',{page:p.page})}</span></button>):units.map((u,i)=><button className={activeUnit===i?'active':''} key={u.id} onClick={()=>{setActiveUnit(i);setSourcePage(u.pages[0]);setTab('guide');}}><small>{String(i+1).padStart(2,'0')}</small><span>{u.title}</span></button>)}</div><details className="reader-notes"><summary>{t('本页私人笔记')}</summary><label>{t('第 {page} 页',{page:sourcePage})}<textarea maxLength={5000} rows={6} value={notes[sourcePage]||''} onChange={e=>saveNote(e.target.value)}/></label><small>{t('仅保存在此浏览器，不向老师共享。')}</small>{noteError&&<Alert>{noteError}</Alert>}</details></aside>}
+
       {tab === 'guide' &&
         (unit ? (
           <div className="cp-guide-layout">
@@ -265,7 +327,7 @@ export default function CampusLearning({
             return (
               <article className="cp-card cp-question" key={q.id}>
                 <span className="cp-eyebrow">
-                  QUESTION {String(i + 1).padStart(2, '0')}
+                  {t('第 {number} 题',{number:i+1})}
                 </span>
                 <h3>{t(q.prompt)}</h3>
                 <fieldset disabled={checked}>
@@ -352,19 +414,25 @@ export default function CampusLearning({
           })}
         </div>
       )}
-      {tab === 'ask' && (
+      {(tab === 'ask' || modal || workspace) && (
         <div className="cp-ask-layout">
           <section className="cp-card cp-chat">
             <header>
               <Icon name="message" />
               <div>
                 <h2>{t('针对这份课件提问')}</h2>
-                <p>{t('回答附带原文出处，方便回到课件核对。')}</p>
+                <p>{t('回答附带原文出处，方便回到课件核对。')}</p><small>{t('当前阅读：第 {page} 页',{page:sourcePage})}</small>
               </div>
               <span className={`cp-status ${api ? 'connected' : ''}`}>
                 {t(api ? '个人 API 已设置' : '个人 API 未设置')}
               </span>
+              {(modal||workspace) && (
+                <button className="cp-link student-study-connect" onClick={onConnect}>
+                  {t('管理个人 API')}
+                </button>
+              )}
             </header>
+            <p className="cp-fineprint">{t('仅依据当前文件的文字回答，不搜索其他课件或互联网；资料之外的问题可能无法回答。')}</p>
             <div className="cp-chat-history" aria-live="polite">
               {!history.length && (
                 <div className="cp-chat-start">
@@ -395,7 +463,7 @@ export default function CampusLearning({
                     <span className="cp-eyebrow">
                       {t(
                         item.result.mode === 'ai'
-                          ? 'ELM · 课件讲解'
+                          ? item.provider === 'deepseek' ? 'DeepSeek · 课件讲解' : 'ELM · 课件讲解'
                           : '原文检索结果',
                       )}
                     </span>
@@ -457,7 +525,9 @@ export default function CampusLearning({
             </form>
             <p className="cp-fineprint">
               {t(
-                'AI 问答使用你自己的 API。发送问题时，仅向 ELM 提交当前课件的相关文字片段。',
+                api?.provider === 'deepseek'
+                  ? 'AI 问答使用你自己的 API。发送问题时，仅向 DeepSeek 提交当前课件的相关文字片段。'
+                  : 'AI 问答使用你自己的 API。发送问题时，仅向 ELM 提交当前课件的相关文字片段。',
               )}
             </p>
           </section>
@@ -494,13 +564,31 @@ export default function CampusLearning({
               </a>
             )}
           </header>
+          <div className="student-study-page-controls" aria-label={t('原文页码')}>
+            <button
+              className="cp-button"
+              disabled={currentPageIndex <= 0}
+              onClick={() => openSource(pages[currentPageIndex - 1].page)}
+            >
+              {t('上一页')}
+            </button>
+            <span>{t('第 {current} / {count} 页', { current: page?.page ?? 0, count: pages.length })}</span>
+            <button
+              className="cp-button"
+              disabled={currentPageIndex < 0 || currentPageIndex >= pages.length - 1}
+              onClick={() => openSource(pages[currentPageIndex + 1].page)}
+            >
+              {t('下一页')}
+            </button>
+          </div>
+          {pageError && <Alert>{pageError}</Alert>}
           <div className="cp-original-layout">
             <nav aria-label={t('原文页码')}>
-              {material.document.pages.map((p) => (
+              {pages.map((p) => (
                 <button
                   key={p.page}
                   className={sourcePage === p.page ? 'active' : ''}
-                  onClick={() => setSourcePage(p.page)}
+                  onClick={() => openSource(p.page)}
                 >
                   <span>{String(p.page).padStart(2, '0')}</span>
                   {p.title || t('第 {page} 页', { page: p.page })}
@@ -508,20 +596,9 @@ export default function CampusLearning({
               ))}
             </nav>
             <article>
-              <span className="cp-eyebrow">
-                {t('第 {page} 页', { page: page?.page || 1 })}
-              </span>
-              <h2>{page?.title}</h2>
-              <div className="cp-source-text">
-                {page?.text ||
-                  t('这一页没有可提取的文字，请下载原件查看图示。')}
-              </div>
-              {fileUrl && material.name.toLowerCase().endsWith('.pdf') && (
-                <iframe
-                  src={`${fileUrl}#page=${page?.page || 1}`}
-                  title={t('课件 PDF 预览')}
-                />
-              )}
+              {!(fileUrl&&material.name.toLowerCase().endsWith('.pdf'))&&<p className="student-study-format-note">{t('当前为解析文字预览；图表、排版或动画请下载原文件核对。')}</p>}
+              <Suspense fallback={<p role="status">{t('正在加载课件预览…')}</p>}><ContinuousCourseReader key={material.id} url={fileUrl} pdf={!!fileUrl&&material.name.toLowerCase().endsWith('.pdf')} pages={pages} currentPage={sourcePage} onPageChange={page=>{setSourcePage(page);const index=units.findIndex(u=>u.pages.includes(page));if(index>=0)setActiveUnit(index);}}/></Suspense>
+
             </article>
           </div>
           {material.document.warnings.length > 0 && (
@@ -534,6 +611,7 @@ export default function CampusLearning({
           )}
         </section>
       )}
+      </div>
     </section>
   );
 }

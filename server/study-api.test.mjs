@@ -235,7 +235,7 @@ test('Qwen options stay server side and incomplete model output is rejected', as
 test('student AI requires a personal key and never falls back to teacher credentials', async () => {
   const env={ELM_API_KEY:'teacher-key-fixture',ELM_BASE_URL:'http://127.0.0.1:9999/v1',ELM_MODEL:'teacher-model',ELM_CREDENTIAL_CONFIG:'/unused-fixture'};
   const doc=await parseDocument(textPayload);
-  await assert.rejects(askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student'},{env}),/自己的 ELM/);
+  await assert.rejects(askDocument({document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student'},{env}),/自己的 API/);
   assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'bad\nkey',model:'fixture'}},env),/格式/);
   assert.throws(()=>personalModelEnv({credentialScope:'student',personalApi:{key:'fixture',model:'bad model'}},env),/格式/);
   assert.equal(personalModelEnv({credentialScope:'teacher'},env),env);
@@ -260,6 +260,31 @@ test('student AI requires a personal key and never falls back to teacher credent
   }finally{globalThis.fetch=previous;}
 });
 
+test('student DeepSeek key is sent only to the fixed DeepSeek endpoint', async () => {
+  const env={ELM_API_KEY:'teacher-key-fixture',ELM_BASE_URL:'https://elm.edina.ac.uk/api/v1',ELM_MODEL:'teacher-model'};
+  const doc=await parseDocument(textPayload);
+  const payload={document:doc,question:'consent',mode:'ai',allowExternal:true,credentialScope:'student',
+    personalApi:{provider:'deepseek',key:'student-deepseek-fixture',model:'deepseek-flash',baseUrl:'https://ignored.invalid'},language:'en'};
+  assert.throws(()=>personalModelEnv({...payload,personalApi:{...payload.personalApi,provider:'unknown'}},env),/提供方/);
+  assert.throws(()=>personalModelEnv({...payload,personalApi:{...payload.personalApi,model:'teacher-model'}},env),/DeepSeek 模型/);
+  assert.throws(()=>personalModelEnv({...payload,credentialScope:'teacher'},env),/教学 API/);
+  const previous=globalThis.fetch;
+  try {
+    globalThis.fetch=async(url,options)=>{
+      assert.equal(url,'https://api.deepseek.com/chat/completions');
+      assert.equal(options.headers.Authorization,'Bearer student-deepseek-fixture');
+      const body=JSON.parse(options.body);
+      assert.equal(body.model,'deepseek-flash');
+      assert.deepEqual(body.thinking,{type:'disabled'});
+      return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'Consent is voluntary. [p. 1]'}}]}));
+    };
+    const result=await askDocument(payload,{env});
+    assert.equal(result.grounded,true);
+    assert(!JSON.stringify(result).includes('student-deepseek-fixture'));
+    assert.equal(env.ELM_API_KEY,'teacher-key-fixture');
+  } finally {globalThis.fetch=previous;}
+});
+
 test('teacher guidance generation reuses a parsed document, validates citations and language', async () => {
   const doc=await parseDocument(textPayload);
   const previous=globalThis.fetch;
@@ -277,4 +302,17 @@ test('teacher guidance generation reuses a parsed document, validates citations 
     globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({units:[{...unit,pages:[900]}]})}}]}));
     await assert.rejects(generateGuidance({document:doc,allowExternal:true,credentialScope:'teacher'},{env}),/页码/);
   }finally{globalThis.fetch=previous;}
+});
+
+test('current-page questions use the visible slide without keyword matches or neighbouring substitution',async()=>{
+ const document={id:'visible-hci-page-fixture',courseId:'hci',name:'hci-week-5-lecture.pdf',pages:[{page:1,title:'Today',text:'Today: qualitative data.'},{page:4,title:'Why do we need to analyse data?',text:'We analyse data to make sense of collected data, identify meaningful findings and translate findings into design specifications.'},{page:5,title:'Diagram',text:''}]};
+ const payload={document,question:'这页讲了什么',currentPage:4,mode:'ai',allowExternal:true,credentialScope:'student',personalApi:{provider:'deepseek',key:'student-fixture',model:'deepseek-flash'}};
+ const previous=globalThis.fetch;let calls=0;
+ try{
+  globalThis.fetch=async(_url,options)=>{calls++;const body=JSON.parse(options.body),input=JSON.parse(body.messages[1].content);assert.equal(input.currentPage,4);assert.equal(input.scope,'current-page');assert.deepEqual(input.sources.map(s=>s.page),[4]);assert(input.sources[0].excerpt.includes('design specifications'));return new Response(JSON.stringify({choices:[{message:{content:'本页说明分析数据的目的：理解数据、识别有意义的发现，并转化为设计要求。[第4页]'}}]}));};
+  const r=await askDocument(payload,{env:{ELM_BASE_URL:'https://elm.edina.ac.uk/api/v1',ELM_MODEL:'fixture'}});assert.equal(calls,1);assert.equal(r.grounded,true);assert.equal(r.sources[0].page,4);
+  const blank=await askDocument({...payload,currentPage:5});assert.equal(calls,1);assert.equal(blank.grounded,false);assert(blank.answer.includes('当前页没有'));
+  await assert.rejects(askDocument({...payload,currentPage:999}),/页不存在/);
+  const local=await askDocument({...payload,question:'What does this page explain?',mode:'local',personalApi:undefined,language:'en'});assert.deepEqual(local.sources.map(s=>s.page),[4]);
+ }finally{globalThis.fetch=previous;}
 });

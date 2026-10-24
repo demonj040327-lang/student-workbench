@@ -1,17 +1,19 @@
 # workbench · 高校课程学习工作台
 
-TeachAthon 2026 本地原型：教师按课程上传并发布资料，学生查看学期作业进度、每周任务，使用已发布的学习指导与练习，并通过自己的 ELM API 针对课件提问。
+TeachAthon 2026 本地原型：教师按课程上传并发布资料，学生查看学期作业进度、每周任务，使用已发布的学习指导与练习，并通过自己的 ELM 或 DeepSeek API 针对课件提问。
 
 ## 使用说明
 
 完整操作步骤见 **[workbench 使用说明](docs/学生教师双视角说明.md)**，包括教师上传与发布、学生学习与问答、API 设置、资料保存和常见问题。
+
+当前实现范围与主要代码见 **[学生端课件学习与个人 AI 接口代码说明](docs/学生端课件学习与个人AI接口代码说明.md)**。
 
 - [学生演示](http://localhost:5175/?demo=1&role=student)
 - [教师演示](http://localhost:5175/?demo=1&role=teacher)
 - [正式教师工作区](http://localhost:5175/?role=teacher)
 - [正式学生工作区](http://localhost:5175/?role=student)
 
-右上角切换学生 / 教师及中文 / EN。演示和正式数据独立。正式工作区首次使用时，先由教师创建课程、上传课件并发布，再切换到学生视角学习。
+右上角可切换中文 / EN；切换学生或教师身份时，退出后重新选择对应入口。演示和正式数据独立。正式工作区首次使用时，先由教师创建课程、上传课件并发布，再切换到学生视角学习。
 
 界面沿用浅灰背景、白色面板、深色文字和蓝色主操作；课程保留各自的区分色。
 
@@ -24,13 +26,13 @@ npm run dev -- --port 5175 --strictPort
 
 双击 `student-workbench.code-workspace` 可在 VS Code 编辑。服务绑定本机地址，手机布局可通过浏览器设备模式查看。
 
-## ELM 配置
+## 个人 AI API 与教学 ELM 配置
 
-学生在界面填写自己的 API Key 和模型名称；Key 只存在页面内存中，刷新后清除。学生调用不会回退到教学凭据。
+学生在界面选择 ELM 或 DeepSeek，填写自己的 API Key 和模型名称；DeepSeek 默认模型为 `deepseek-flash`。Key 只存在页面内存中，刷新后清除。学生调用不会回退到教学凭据，也不会把一种提供方的 Key 发送给另一种提供方。DeepSeek 请求由本机后端固定发送至 `https://api.deepseek.com/chat/completions`，只包含当前课件的相关文字片段和学生的问题。使用 DeepSeek 可能产生 API 费用，模型与价格以 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start/pricing/) 为准。
 
 教师可以在界面填写独立 Key，或使用 `.env.local` 中已有的本机 ELM 配置。服务端环境变量见 `.env.example`，不要把真实密钥写入代码或使用 `VITE_` 前缀。
 
-上传先进行本机文字解析，点击生成后才调用模型。问答只向 ELM 发送当前课件中检索到的相关文字片段。
+上传先进行本机文字解析，点击生成后才调用模型。问答只向当前选择的提供方发送当前课件中检索到的相关文字片段。
 
 ## 主要代码
 

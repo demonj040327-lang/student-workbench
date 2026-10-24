@@ -317,14 +317,14 @@ export default function CourseworkEditor({
                 {
                   (
                     {
-                      title: '标题 / Title',
-                      introduction: '作业介绍 / Introduction',
-                      release: '开始时间 / Start',
-                      deadline: '截止时间 / Deadline',
-                      timezone: '时区 / Timezone',
-                      submissionType: '个人或小组 / Individual or group',
-                      deliverables: '提交内容 / Deliverables',
-                      rubric: '评分标准 / Rubric',
+                      title: tr('标题', 'Title'),
+                      introduction: tr('作业介绍', 'Introduction'),
+                      release: tr('开始时间', 'Start'),
+                      deadline: tr('截止时间', 'Deadline'),
+                      timezone: tr('时区', 'Timezone'),
+                      submissionType: tr('个人或小组', 'Individual or group'),
+                      deliverables: tr('提交内容', 'Deliverables'),
+                      rubric: tr('评分标准', 'Rubric'),
                     } as Record<string, string>
                   )[key]
                 }

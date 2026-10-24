@@ -109,7 +109,7 @@ export default function SemesterOverview({courses, assignments, semester, anchor
   const nextCourse = courses.find(course => course.id === next?.courseId);
   const groups = courses.filter(course => activeFilter === 'all' || course.id === activeFilter).map(course => ({course, items: dated.filter(assignment => assignment.courseId === course.id).sort((a, b) => a.due.localeCompare(b.due))}));
   const orphaned = dated.filter(assignment => !courses.some(course => course.id === assignment.courseId));
-  if (orphaned.length) groups.push({course: {id: 'unclassified', name: '未分类课程', code: '未分类', subject: '', color: '#a1a1a6'}, items: orphaned});
+  if (orphaned.length) groups.push({course: {id: 'unclassified', name: '其他个人安排', code: t('个人'), subject: '', color: '#a1a1a6'}, items: orphaned});
   const todayVisible = today >= rangeStart && today < rangeEnd;
 
   function locateToday() {
@@ -143,7 +143,7 @@ export default function SemesterOverview({courses, assignments, semester, anchor
     </div>
 
     <section className="timeline-card" aria-labelledby="timeline-title">
-      <div className="timeline-card-heading"><div><span className="timeline-eyebrow">SEMESTER TIMELINE</span><h2 id="timeline-title">{t("学期作业进度")}</h2><p>{semester.start.replaceAll('-', '.')} — {semester.end.replaceAll('-', '.')}</p></div><SemesterClock semester={semester}/></div>
+      <div className="timeline-card-heading"><div><h2 id="timeline-title">{t("学期作业进度")}</h2><p>{semester.start.replaceAll('-', '.')} — {semester.end.replaceAll('-', '.')}</p></div><SemesterClock semester={semester}/></div>
       <div className="timeline-toolbar"><div className="timeline-filters" aria-label={t("按课程筛选作业")}><button className={activeFilter === 'all' ? 'active' : ''} aria-pressed={activeFilter === 'all'} onClick={() => setFilter('all')}>{t("全部课程")}</button>{courses.map(course => <button key={course.id} className={activeFilter === course.id ? 'active' : ''} aria-pressed={activeFilter === course.id} onClick={() => setFilter(course.id)}><i style={{background: courseAccent(course)}}/>{course.code}</button>)}</div>{todayVisible && <button className="timeline-today-button" data-testid="month-locate-today" onClick={locateToday}>{t("定位今天")}{' '}<span aria-hidden="true">⌖</span></button>}</div>
       <div className="timeline-scroll" ref={chartRef} tabIndex={0} role="region" aria-label={t("按课程分组的学期作业时间图，可左右滚动")} data-testid="month-chart" data-range-start={toDate(rangeStart)} data-range-end={toDate(rangeEnd - DAY)}>
         <div className="timeline-plot">

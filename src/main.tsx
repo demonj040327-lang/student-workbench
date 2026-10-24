@@ -16,3 +16,4 @@ import './simplified.css';
 
 import './homeTimeline.css';
 import './campus.css';
+import './workbench-polish.css';
