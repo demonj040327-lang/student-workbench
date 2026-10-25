@@ -1,4 +1,5 @@
 import ClassroomRecorder from './ClassroomRecorder';
+import CampusPeers from './CampusPeers';
 import StudentCourseContent from './StudentCourseContent';
 import StudentCourseworkPage from './StudentCourseworkPage';
 import CourseworkEditor from './CourseworkEditor';
@@ -45,13 +46,14 @@ import CampusTeacher from './CampusTeacher';
 import Icon from './CampusIcons';
 import { Alert, CampusDialog, Empty, Meter } from './CampusUI';
 
-type View = 'overview' | 'courses' | 'week' | 'assignments' | 'discussion' | 'study' | 'coursework';
+type View = 'overview' | 'courses' | 'week' | 'assignments' | 'discussion' | 'study' | 'coursework' | 'peers';
 const menu: Record<CampusRole, [View, string, string][]> = {
   student: [
     ['overview', '学期总览', 'home'],
     ['courses', '我的课程', 'book'],
     ['week', '每周任务', 'calendar'],
     ['discussion', '课程讨论', 'message'],
+    ['peers', '同伴互助', 'users'],
   ],
   teacher: [
     ['overview', '教学总览', 'home'],
@@ -841,6 +843,7 @@ export default function CampusApp({
                         {t('创建课程')}
                       </button>
                     )}
+                    {role==='student'&&<button className="cp-button" onClick={()=>navigate('peers')}><Icon name="users" size={16}/>{t('找同学互助')}</button>}
                   </header>
                   <div className="cp-course-tabs" aria-label={t('选择课程')}>
                     {viewCourses.map((c) => (
@@ -925,6 +928,7 @@ export default function CampusApp({
               />
             </>
           )}
+          {role==='student'&&view==='peers'&&<CampusPeers courses={viewCourses} demo={demo} initialCourseId={courseId} onCourse={openCourse}/>}
           {role==='student'&&view==='coursework'&&(readerAssignment?<StudentCourseworkPage key={readerAssignment.id} assignment={readerAssignment} api={api.student} progress={progress} onProgress={setProgress} onConnect={()=>setDialog('api')} onBack={()=>openCourse(readerAssignment.courseId)} onStep={setStep} onPlan={steps=>setPersonalSteps(p=>({...p,[readerAssignment.id]:steps.map((s,i)=>({id:`${readerAssignment.id}-personal-${Date.now()}-${i}`,title:s.title,minutes:s.minutes,day:i,done:false,blocked:false,evidence:s.output,source:`p.${s.sourcePage}: ${s.sourceQuote}`}))}))}/>:<Empty title={t('作业尚未发布或不存在')}><button className="cp-button" onClick={()=>navigate('courses')}>{t('返回课程资料')}</button></Empty>)}
           {role==='student'&&view==='study'&&(activeMaterial?<CampusLearning key={`${activeMaterial.id}:${activeMaterial.updatedAt}`} workspace material={activeMaterial} progress={progress} onProgress={setProgress} api={api.student} onConnect={()=>setDialog('api')} onBack={()=>navigate('courses')} onDiscuss={page=>{setDiscussionContext({courseId:activeMaterial.courseId,title:`${activeMaterial.title} · p.${page}`});navigate('discussion');}}/>:materialsLoading?<p role="status">{t('正在读取课程资料…')}</p>:<Empty title={t('课件尚未发布、已撤回或不存在')}><button className="cp-button" onClick={()=>navigate('courses')}>{t('返回课程资料')}</button></Empty>)}
           {role === 'teacher' && view === 'assignments' && <StudentFeedback courses={viewCourses} materials={visibleMaterials} demo={demo}/>}
