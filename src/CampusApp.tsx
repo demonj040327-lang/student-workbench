@@ -168,7 +168,7 @@ export default function CampusApp({
   const visibleMaterials = materials.filter((m) =>
     role === 'teacher'
       ? teachingCourses.some((c) => c.id === m.courseId)
-      : m.status === 'published',
+      : m.status === 'published' && data.courses.some(c => c.id === m.courseId),
   );
   const activeMaterial = visibleMaterials.find(
     (m) => m.id === materialId && m.courseId === currentCourse?.id,
@@ -1000,7 +1000,7 @@ export default function CampusApp({
         <p>{t('删除后，课程及其作业将从工作区移除。已上传文件保留在本机存储中，不会自动清除。')}</p>
         <strong>{t(deletingCourse.name)}</strong>
         <div className="cp-form-actions"><button className="cp-button" onClick={() => setDeletingCourse(null)}>{t('取消')}</button><button className="cp-button" onClick={() => {
-          setData(d => ({...d, courses:d.courses.filter(c => c.id !== deletingCourse.id), assignments:d.assignments.filter(a => a.courseId !== deletingCourse.id)}));
+          setData(d => ({...d, deletedCourseIds:[...new Set([...(d.deletedCourseIds || []), deletingCourse.id])], courses:d.courses.filter(c => c.id !== deletingCourse.id), assignments:d.assignments.filter(a => a.courseId !== deletingCourse.id)}));
           setDeletingCourse(null); setCourseId(''); setMaterialId(''); setNotice('课程已删除。');
         }}>{t('确认删除')}</button></div>
       </CampusDialog>}

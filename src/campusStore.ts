@@ -31,6 +31,7 @@ export type CampusMaterial = {
 };
 export type CampusData = {
   version: 1;
+  deletedCourseIds?: string[];
   courses: CampusCourse[];
   assignments: Assignment[];
   semester: Semester;
@@ -150,7 +151,7 @@ export function createCampusData(demo: boolean): CampusData {
   }
   return {
     version: 1,
-    courses: courseSeeds,
+    courses: courseSeeds.filter(c => c.instructorId === 'local-teacher'),
     semester: {
       name: '2026/27 · Semester 1',
       start: '2026-09-21',
@@ -177,7 +178,7 @@ export function createCampusData(demo: boolean): CampusData {
         '2026-12-18',
       ][i],
       deadlineVerified: true,
-      category: 'coursework',
+      category: 'coursework' as const,
       brief: '课堂演示作业，要求与日期均为示例。',
       steps: steps[i % 4].map((title, j) => ({
         id: `campus-assignment-${i}-step-${j}`,
@@ -189,7 +190,7 @@ export function createCampusData(demo: boolean): CampusData {
         evidence: '',
         source: '',
       })),
-    })),
+    })).filter(a => courseSeeds.some(c => c.id === a.courseId && c.instructorId === 'local-teacher')),
   };
 }
 export function loadCampusData(demo: boolean): CampusData {
@@ -202,7 +203,17 @@ export function loadCampusData(demo: boolean): CampusData {
     )
       return {
         ...value,
-        courses: value.courses.map((course: CampusCourse) => ({
+        assignments: value.assignments.filter((a: Assignment) =>
+          !(value.deletedCourseIds || []).includes(a.courseId) &&
+          !(demo && value.courses.some((c: CampusCourse) => c.id === a.courseId &&
+            ((c.id === 'campus-ml' && (!c.instructorId || c.instructorId === 'teacher-sam')) ||
+             (c.id === 'campus-history' && (!c.instructorId || c.instructorId === 'teacher-jamie')))))
+        ),
+        courses: value.courses.filter((course: CampusCourse) =>
+          !(demo && ((course.id === 'campus-ml' && (!course.instructorId || course.instructorId === 'teacher-sam')) ||
+            (course.id === 'campus-history' && (!course.instructorId || course.instructorId === 'teacher-jamie')))) &&
+          !(value.deletedCourseIds || []).includes(course.id)
+        ).map((course: CampusCourse) => ({
           ...course,
           instructorId:
             course.instructorId ||

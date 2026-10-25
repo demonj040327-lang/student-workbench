@@ -17,8 +17,10 @@ export async function importLocalDemoLibrary():Promise<LibraryBundle|null> {
  return {courses:bundle.courses,assignments,excludedIds:bundle.excludedIds};
 }
 export function mergeLocalDemoLibrary(data:CampusData,bundle:LibraryBundle):CampusData {
+ const deleted=new Set(data.deletedCourseIds || []);
+ bundle={...bundle,courses:bundle.courses.filter(c=>!deleted.has(c.id)),assignments:bundle.assignments.filter(a=>!deleted.has(a.courseId))};
  const seeds=new Set(['campus-hci','campus-ml','campus-history','campus-policy']);
- const courses=data.courses.filter(c=>!seeds.has(c.id));
+ const courses=data.courses.filter(c=>!seeds.has(c.id)&&!deleted.has(c.id));
  const replacements=new Map(bundle.assignments.filter(a=>{const old=data.assignments.find(v=>v.id===a.id) as (Assignment&Partial<LibraryItem>)|undefined;return !old||old.libraryVersion!==(a as Assignment&LibraryItem).libraryVersion;}).map(a=>[a.id,a]));
- return {...data,courses:[...courses,...bundle.courses.filter(c=>!courses.some(old=>old.id===c.id))],assignments:[...data.assignments.filter(a=>!seeds.has(a.courseId)&&!(bundle.excludedIds||[]).includes(a.id)&&!replacements.has(a.id)),...replacements.values()]};
+ return {...data,courses:[...courses,...bundle.courses.filter(c=>!courses.some(old=>old.id===c.id))],assignments:[...data.assignments.filter(a=>!seeds.has(a.courseId)&&!deleted.has(a.courseId)&&!(bundle.excludedIds||[]).includes(a.id)&&!replacements.has(a.id)),...replacements.values()]};
 }
