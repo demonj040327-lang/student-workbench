@@ -83,7 +83,7 @@
   "连接我的 ELM API": "Connect my ELM API",
   "连接我的 AI API": "Connect my AI API",
   "作业进度": "Coursework progress",
-  "作业要求": "Coursework requirements",
+  "作业要求": "Assignment requirements",
   "作业完成度": "Coursework completion",
   "建议 {minutes} 分钟": "About {minutes} min",
   "完成度由你勾选的步骤计算，进度只记录在你的学习空间。": "Completion is based on your checked steps and stored in your learning workspace.",
@@ -589,5 +589,7 @@
   "当前浏览器不支持共享音频，请使用电脑端 Chrome 或 Edge。": "Audio sharing is unavailable in this browser. Use desktop Chrome or Edge.",
   "没有共享到音频。请重新选择播放视频的浏览器标签页，并勾选“分享标签页音频”；共享窗口或屏幕是否带声音取决于浏览器与系统。": "No audio was shared. Select the tab playing your video and enable “Share tab audio”. Window and screen audio depend on your browser and operating system.",
   "音频共享已取消或未获允许，请重新选择并允许共享音频。": "Audio sharing was cancelled or denied. Select your audio source and allow sharing to retry.",
-  "音频共享已结束，请重新选择视频音频来源。": "Audio sharing ended. Select the video audio source again."
+  "音频共享已结束，请重新选择视频音频来源。": "Audio sharing ended. Select the video audio source again.",
+  "上传作业说明": "Upload coursework brief",
+  "作业标题": "Assignment title"
 }

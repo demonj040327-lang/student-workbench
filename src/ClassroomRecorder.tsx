@@ -354,7 +354,7 @@ export default function ClassroomRecorder({
       originalTranscript: '',
       translation: '',
       translatedSource: '',
-      targetLanguage: 'zh',
+      targetLanguage: language === 'en' ? 'en' : 'zh',
       explanation: '',
       explanationSource: '',
     };
@@ -1110,7 +1110,7 @@ export default function ClassroomRecorder({
                             }))
                           }
                         >
-                          <option value="zh">中文</option>
+                          <option value="zh">{tr('中文', 'Chinese')}</option>
                           <option value="en">English</option>
                         </select>
                       </label>
