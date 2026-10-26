@@ -19,7 +19,7 @@ try {
   });
   speech.on('error', () =>
     console.error(
-      'Speech service could not start. See docs/本地实时语音部署与测试.md.',
+      'Speech service could not start. See docs/LOCAL_SPEECH_SETUP.md.',
     ),
   );
   speech.on('exit', (code) => {

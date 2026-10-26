@@ -26,3 +26,6 @@ server/__pycache__/
 
 # Local Python launcher bytecode
 /tools/__pycache__/
+
+# Local document-parser environment
+.venv/

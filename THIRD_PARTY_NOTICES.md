@@ -33,16 +33,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Other reviewed projects
+## WhisperLiveKit local speech service
 
-- OpenMAIC: https://github.com/THU-MAIC/OpenMAIC — architecture reference only; no code, generated classroom or asset imported in this change.
-- DeepTutor: https://github.com/HKUDS/DeepTutor — comparative research only; no source, model or asset imported in this change.
-
-Existing npm dependencies retain their own licenses in their distributions. This document records the scope of this peer-learning change, rather than claiming to be an exhaustive inventory of every dependency.
-
-## WhisperLiveKit local evaluation
-
-The independent local speech service uses [WhisperLiveKit](https://github.com/QuentinFuxa/WhisperLiveKit), Apache-2.0, pinned at `eb92c115ee7abc1e161b0b2159da31785b0f5566` (version 0.2.26). Source, environment and downloaded model weights remain outside the distributed application in the ignored `.backups/` directory. The application has not copied its web UI or model implementation. Launch and evaluation scripts are project-specific. The student classroom panel is implemented separately and consumes the local WebSocket protocol. See the upstream [LICENSE](https://github.com/QuentinFuxa/WhisperLiveKit/blob/eb92c115ee7abc1e161b0b2159da31785b0f5566/LICENSE); dependencies and model weights retain their respective licenses.
+The optional local speech service uses [WhisperLiveKit](https://github.com/QuentinFuxa/WhisperLiveKit), Apache-2.0, pinned at `eb92c115ee7abc1e161b0b2159da31785b0f5566` (version 0.2.26). Source, environment and downloaded model weights remain outside the distributed application in the ignored `.backups/` directory. The application has not copied its web UI or model implementation. Launch and evaluation scripts are project-specific. The student classroom panel is implemented separately and consumes the local WebSocket protocol. See the upstream [LICENSE](https://github.com/QuentinFuxa/WhisperLiveKit/blob/eb92c115ee7abc1e161b0b2159da31785b0f5566/LICENSE); dependencies and model weights retain their respective licenses.
 
 The evaluation downloads the public JFK WAV from [whisper.cpp](https://github.com/ggml-org/whisper.cpp/blob/master/samples/jfk.wav), pinned by SHA-256 in the fixture preparation script. Audio is not distributed with this repository. HCI and machine-learning test passages are synthesized locally with macOS voices and are not recordings of students or lecturers.
 

@@ -1,7 +1,0 @@
-{
-  "date": "2026-10-14",
-  "ownedBrowserEndpoint": "http://127.0.0.1:9238",
-  "action": "Browser.close",
-  "status": "CDP command completed",
-  "userMainBrowser": false
-}

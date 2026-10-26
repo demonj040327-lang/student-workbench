@@ -4,7 +4,7 @@ project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$project_root"
 python_bin="$project_root/.backups/whisperlivekit-env/bin/python"
 if [ ! -x "$python_bin" ]; then
-  echo 'Local speech environment is missing. See docs/本地实时语音部署与测试.md.' >&2
+  echo 'Local speech environment is missing. See docs/LOCAL_SPEECH_SETUP.md.' >&2
   exit 1
 fi
 export HF_HOME="$project_root/.backups/speech-models"
