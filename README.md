@@ -2,9 +2,9 @@
 
 A course-based learning workspace for university students and teachers. Teachers review and publish learning materials; students connect those resources with weekly study, coursework plans, source-grounded questions and human help.
 
-[Demo video](https://uoe-my.sharepoint.com/:v:/g/personal/s2950330_ed_ac_uk/IQB-wXL3cgcuRJIivys37smpAeJ5MeK2ZasmbJkiPwqaKFM?e=uhjr76) · [User guide](docs/USER_GUIDE.md) · [中文使用说明](docs/学生教师双视角说明.md)
+[Demo video](https://github.com/demonj040327-lang/student-workbench/releases/tag/teachathon-2026-demo) · [User guide](docs/USER_GUIDE.md) · [中文使用说明](docs/学生教师双视角说明.md)
 
-The video is hosted on the University of Edinburgh’s SharePoint. Viewing may require a permitted Microsoft account.
+The video is a public GitHub Release attachment. [Download the MP4](https://github.com/demonj040327-lang/student-workbench/releases/download/teachathon-2026-demo/demo_video.mp4); no university account is needed. Open it in a video player if the browser does not play it directly.
 
 ## What you can do
 
